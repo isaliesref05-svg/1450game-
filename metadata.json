@@ -1,0 +1,6 @@
+{
+  "name": "1450 Party",
+  "description": "1450 Party - Çöp Adam Döyüşü, Mini Oyunlar və Stil Mağazası",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,216 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'isaliesref05@gmail.com';
+    }
+
+    function isValidEquippedSlot(slot) {
+      return slot is map
+        && slot.keys().hasAll(['outfit', 'hat', 'accessory'])
+        && slot.keys().hasOnly(['outfit', 'hat', 'accessory'])
+        && slot.outfit is string && slot.outfit.size() >= 1 && slot.outfit.size() <= 32
+        && (slot.hat == null || (slot.hat is string && slot.hat.size() <= 32))
+        && (slot.accessory == null || (slot.accessory is string && slot.accessory.size() <= 32));
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'name', 'coins', 'matches', 'owned', 'equipped', 'colors',
+          'muted', 'volume', 'musicVolume', 'musicMuted', 'battleVolume',
+          'battleMuted', 'shakeEnabled', 'joystickSize',
+          'onlineSplitButtons', 'onlineControlsSwapped',
+          'isOnline', 'lastSeenAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'name', 'email', 'photoURL', 'coins', 'matches', 'owned',
+          'equipped', 'colors', 'muted', 'volume', 'musicVolume', 'musicMuted',
+          'battleVolume', 'battleMuted', 'shakeEnabled', 'joystickSize',
+          'onlineSplitButtons', 'onlineControlsSwapped',
+          'isOnline', 'lastSeenAt', 'createdAt', 'updatedAt'
+        ])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.uid == request.auth.uid && data.uid == userId
+        && data.name is string && data.name.size() <= 32
+        && (!('email' in data) || data.email == null || (data.email is string && data.email.size() <= 160))
+        && (!('photoURL' in data) || data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 512))
+        && data.coins is int && data.coins >= 0 && data.coins <= 10000000
+        && data.matches is int && data.matches >= 0 && data.matches <= 1000000
+        && data.owned is list && data.owned.size() >= 1 && data.owned.size() <= 100
+        && data.owned[0] is string && data.owned[0].size() <= 32
+        && data.colors is list && data.colors.size() == 4
+        && data.colors[0] is string && data.colors[0].size() <= 16
+        && data.equipped is map
+        && data.equipped.keys().hasAll(['0', '1', '2', '3'])
+        && data.equipped.keys().hasOnly(['0', '1', '2', '3'])
+        && isValidEquippedSlot(data.equipped['0'])
+        && isValidEquippedSlot(data.equipped['1'])
+        && isValidEquippedSlot(data.equipped['2'])
+        && isValidEquippedSlot(data.equipped['3'])
+        && data.muted is bool
+        && data.musicMuted is bool
+        && data.battleMuted is bool
+        && data.shakeEnabled is bool
+        && data.volume is number && data.volume >= 0 && data.volume <= 1
+        && data.musicVolume is number && data.musicVolume >= 0 && data.musicVolume <= 1
+        && data.battleVolume is number && data.battleVolume >= 0 && data.battleVolume <= 1
+        && data.joystickSize in ['small', 'normal', 'large']
+        && data.onlineSplitButtons is bool
+        && data.onlineControlsSwapped is bool
+        && data.isOnline is bool
+        && data.lastSeenAt is timestamp
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUsernameClaim(data) {
+      return data.keys().hasAll(['uid', 'name', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'name', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.uid == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 32
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoom(data, roomId) {
+      return data.keys().hasAll(['id', 'name', 'hostUid', 'hostName', 'locked', 'playerCount', 'status', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'name', 'hostUid', 'hostName', 'locked', 'playerCount', 'status', 'updatedAt'])
+        && data.id is string && data.id == roomId && data.id.size() >= 1 && data.id.size() <= 64
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 24
+        && data.hostUid is string && data.hostUid.size() >= 1 && data.hostUid.size() <= 128
+        && data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 32
+        && data.locked is bool
+        && data.playerCount is int && data.playerCount >= 1 && data.playerCount <= 4
+        && data.status in ['lobby', 'playing']
+        && data.updatedAt is int;
+    }
+
+    function isValidSignal(data, signalId) {
+      return data.keys().hasAll(['guestUid', 'guestName', 'updatedAt'])
+        && data.keys().hasOnly(['guestUid', 'guestName', 'password', 'offer', 'answer', 'guestCandidates', 'hostCandidates', 'status', 'updatedAt'])
+        && data.guestUid is string && data.guestUid == signalId && data.guestUid.size() >= 1 && data.guestUid.size() <= 128
+        && data.guestName is string && data.guestName.size() <= 32
+        && (!('password' in data) || (data.password is string && data.password.size() <= 32))
+        && (!('offer' in data) || (data.offer is string && data.offer.size() <= 12000))
+        && (!('answer' in data) || (data.answer is string && data.answer.size() <= 12000))
+        && (!('guestCandidates' in data) || (data.guestCandidates is list && data.guestCandidates.size() <= 40))
+        && (!('hostCandidates' in data) || (data.hostCandidates is list && data.hostCandidates.size() <= 40))
+        && (!('status' in data) || data.status in ['pending', 'answered', 'rejected'])
+        && data.updatedAt is int;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().lastSeenAt == request.time
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) && (
+        (
+          isOwner(userId)
+          && isValidUserProfile(incoming(), userId)
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().lastSeenAt == request.time
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'email', 'photoURL', 'coins', 'matches', 'owned',
+            'equipped', 'colors', 'muted', 'volume', 'musicVolume',
+            'musicMuted', 'battleVolume', 'battleMuted', 'shakeEnabled',
+            'joystickSize', 'onlineSplitButtons', 'onlineControlsSwapped',
+            'isOnline', 'lastSeenAt', 'updatedAt'
+          ])
+        )
+        || (
+          isAdmin()
+          && incoming().diff(existing()).affectedKeys().hasOnly(['coins', 'updatedAt'])
+          && incoming().coins is int
+          && incoming().coins >= 0
+          && incoming().coins <= 10000000
+          && incoming().updatedAt == request.time
+        )
+      );
+      allow delete: if isValidId(userId) && isOwner(userId);
+    }
+
+    match /usernames/{nameKey} {
+      allow get: if isValidId(nameKey);
+      allow list: if false;
+      allow create: if isValidId(nameKey)
+        && isSignedIn()
+        && isValidUsernameClaim(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(nameKey)
+        && isSignedIn()
+        && existing().uid == request.auth.uid
+        && isValidUsernameClaim(incoming())
+        && incoming().uid == existing().uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'updatedAt']);
+      allow delete: if isValidId(nameKey)
+        && isSignedIn()
+        && existing().uid == request.auth.uid;
+    }
+
+    match /rooms/{roomId} {
+      allow get, list: if isValidId(roomId) && isAuthenticated();
+      allow create: if isValidId(roomId)
+        && isAuthenticated()
+        && isValidRoom(incoming(), roomId)
+        && incoming().hostUid == request.auth.uid;
+      allow update: if isValidId(roomId)
+        && isAuthenticated()
+        && isValidRoom(incoming(), roomId)
+        && (existing().hostUid == request.auth.uid || (existing().updatedAt + 90000) < incoming().updatedAt);
+      allow delete: if isValidId(roomId)
+        && isAuthenticated()
+        && existing().hostUid == request.auth.uid;
+
+      match /signals/{signalId} {
+        allow get, list: if isValidId(roomId) && isValidId(signalId) && isAuthenticated()
+          && (request.auth.uid == signalId || get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid);
+        allow create: if isValidId(roomId) && isValidId(signalId) && isAuthenticated()
+          && request.auth.uid == signalId
+          && isValidSignal(incoming(), signalId);
+        allow update: if isValidId(roomId) && isValidId(signalId) && isAuthenticated()
+          && isValidSignal(incoming(), signalId)
+          && (request.auth.uid == signalId || get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid);
+        allow delete: if isValidId(roomId) && isValidId(signalId) && isAuthenticated()
+          && (request.auth.uid == signalId || get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid);
+      }
+    }
+  }
+}
