@@ -407,6 +407,14 @@ class EconomyStore {
     return true;
   }
 
+  spendCoins(amount: number): boolean {
+    const clean = Math.floor(Number(amount) || 0);
+    if (clean <= 0 || this.profile.coins < clean) return false;
+    this.profile.coins -= clean;
+    this.save();
+    return true;
+  }
+
   equip(id: string, i: number): boolean {
     const item = byId(id);
     if (!item || !this.profile.owned.includes(id) || !this.profile.equipped[i]) return false;

@@ -39,15 +39,10 @@ export type MapId =
 
 export type MinigameId =
   | 'zombie'
-  | 'samurai'
-  | 'sniper'
-  | 'race'
-  | 'blades'
-  | 'sumo'
-  | 'futbol'
-  | 'laser'
-  | 'lava'
-  | 'bomb';
+  | 'meteor'
+  | 'inferno'
+  | 'storm'
+  | 'avalanche';
 
 export type ScreenId =
   | 'home'
@@ -123,16 +118,11 @@ export interface MinigameInfo {
 }
 
 export const MINIGAME_LIST: MinigameInfo[] = [
-  { id: 'zombie', name: 'Zombi Hücumu', desc: 'Dağılmış şəhərdə tullan, zombi dalğalarını vur və sağ qal!', tag: 'YENİ · ZOMBİ' },
-  { id: 'samurai', name: 'Samuray Duellosu', desc: 'Katana zərbəsi ilə sıçra, qılıncları toqquşdur!', tag: 'YENİ · QILINC' },
-  { id: 'sniper', name: 'Snayper Duellosu', desc: 'Lazer nişanı al, sütunlardan sıçrayan güllə at', tag: 'YENİ · TAKTİKİ' },
-  { id: 'race', name: 'Parkur', desc: 'Beton qatlar və fırlanan mişarlardan hoppan, finişə çat!', tag: 'YENİ · PARKUR' },
-  { id: 'blades', name: 'Mişar Arenası', desc: 'Sürətlənən mişarlardan qaç, rəqibi üstünə itələ', tag: 'XARABALIQ' },
-  { id: 'sumo', name: 'Sumo Döyüşü', desc: 'Daralan dojoda zərbə dalğası ilə rəqibi itələ', tag: '2-4 Oyunçu' },
-  { id: 'futbol', name: 'Mini Futbol', desc: 'Künc bamperli meydançada 3 qol vur və qazan', tag: 'Komanda' },
-  { id: 'laser', name: 'Lazer Tələsi', desc: 'Çarpaz lazerlərdən sıyrıl, qalxan kürəsi topla', tag: 'Sağ qal' },
-  { id: 'lava', name: 'Lava Qalxışı', desc: 'Yaylı batutlarla tullan, qalxan maqmadan qaç', tag: 'Tırmanış' },
-  { id: 'bomb', name: 'İsti Bomba', desc: 'Sütunlar arasında qaç, taymer bitmədən bombanı at', tag: 'Partlayış' },
+  { id: 'zombie', name: 'Zombi Hücumu', desc: '100 dalğada tullan, bossları vur və sağ qal!', tag: 'ZOMBİ · 100 DALĞA' },
+  { id: 'meteor', name: 'Meteor Yağışı', desc: 'Vulkan körpüsündə çarpaz meteorlar və maqma püskürməsindən qaç!', tag: 'YENİLƏNDİ · VULKAN' },
+  { id: 'inferno', name: 'Vulkan Qülləsi', desc: 'Yüksələn lavadan qaçaraq zavod qülləsinin zirvəsinə dırman!', tag: 'YENİ · DIRMANIŞ' },
+  { id: 'storm', name: 'Fırtına Gəmisi', desc: 'İldırım və nəhəng dalğalar altında gəmi göyərtəsində sağ qal!', tag: 'YENİ · OKİAN' },
+  { id: 'avalanche', name: 'Qar Çığından Qaçış', desc: 'Yuxarıdan gələn qar çığından qaçaraq açıq keçidlərdən aşağı en!', tag: 'YENİ · QAÇIŞ' },
 ];
 
 export interface PlayerInput {

@@ -227,7 +227,7 @@ export function HomeScreen({
                 MİNİ OYUNLAR
               </h2>
               <p className="hidden md:block text-xs sm:text-sm text-zinc-300 max-w-sm line-clamp-2">
-                Zombi Hücumu, Samuray Duellosu, Snayper, Parkur, Mişar Arenası, Sumo və Futbol.
+                Zombi Hücumu, Meteor Yağışı, Vulkan Qülləsi, Fırtına Gəmisi və Qar Çığından Qaçış.
               </p>
               <div className="mt-1 inline-flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg bg-zinc-900/95 border border-white/60 text-white font-bold text-xs sm:text-sm group-hover:bg-white group-hover:text-zinc-950 transition-all">
                 <span>Oyunları Gör</span>

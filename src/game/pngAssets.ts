@@ -11,14 +11,6 @@ import {
 } from './maps';
 import { MapId, MinigameId, WeaponChoice } from './types';
 import miniZombieImg from '../assets/images/mini_zombie_survival_1794948848694.jpg';
-import miniSamuraiImg from '../assets/images/mini_samurai_duel_1794948848355.jpg';
-import miniSniperImg from '../assets/images/mini_sniper_duel_1794948849374.jpg';
-import miniBladesImg from '../assets/images/mini_blades_arena_1794948850761.jpg';
-import miniSumoImg from '../assets/images/mini_sumo_clash_1794948852353.jpg';
-import miniFutbolImg from '../assets/images/mini_soccer_stadium_1794948851193.jpg';
-import miniLaserImg from '../assets/images/mini_laser_trap_1794948851554.jpg';
-import miniLavaImg from '../assets/images/mini_lava_climb_1794948851919.jpg';
-import miniBombImg from '../assets/images/mini_hot_bomb_1794948854770.jpg';
 
 function line(ctx: CanvasRenderingContext2D, a: number, b: number, c: number, d: number) {
   ctx.beginPath();
@@ -779,8 +771,8 @@ export function getMinigamePng(id: MinigameId): string {
   if (cached) return cached;
   if (typeof document === 'undefined') return '';
 
-  const w = 320;
-  const h = 180;
+  const w = 640;
+  const h = 400;
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -793,202 +785,348 @@ export function getMinigamePng(id: MinigameId): string {
   g.fillRect(0, 0, w, h);
 
   if (id === 'zombie') {
-    const zg = g.createRadialGradient(160, 96, 18, 160, 96, 175);
+    const zg = g.createRadialGradient(320, 210, 30, 320, 210, 360);
     zg.addColorStop(0, '#132a17');
     zg.addColorStop(0.6, '#0b1610');
     zg.addColorStop(1, '#060807');
     g.fillStyle = zg;
     g.fillRect(0, 0, w, h);
-    // Graveyard ground grid & toxic mist
     g.strokeStyle = 'rgba(74,222,128,0.09)';
-    for (let x = 0; x < w; x += 32) line(g, x, 0, x, h);
-    for (let y = 0; y < h; y += 32) line(g, 0, y, w, y);
-    // Gravestone blocks
+    for (let x = 0; x < w; x += 48) line(g, x, 0, x, h);
+    for (let y = 0; y < h; y += 48) line(g, 0, y, w, y);
     g.fillStyle = '#27272a';
-    roundRectPath(g, 48, 50, 32, 42, 6); g.fill();
-    roundRectPath(g, 240, 96, 32, 42, 6); g.fill();
-    // Hero stickman firing cyan plasma bolt
-    g.strokeStyle = '#3b82f6'; g.lineWidth = 5; g.lineCap = 'round';
-    line(g, 96, 98, 96, 122);
-    line(g, 96, 122, 86, 140); line(g, 96, 122, 106, 140);
-    line(g, 96, 102, 118, 100);
-    g.fillStyle = '#3b82f6'; g.beginPath(); g.arc(96, 84, 10, 0, Math.PI * 2); g.fill();
-    g.shadowColor = '#38bdf8'; g.shadowBlur = 12;
-    g.fillStyle = '#bae6fd'; roundRectPath(g, 124, 96, 20, 5, 2.5); g.fill();
+    roundRectPath(g, 90, 110, 64, 88, 10); g.fill();
+    roundRectPath(g, 480, 200, 64, 88, 10); g.fill();
+    g.strokeStyle = '#3b82f6'; g.lineWidth = 9; g.lineCap = 'round';
+    line(g, 190, 215, 190, 265);
+    line(g, 190, 265, 170, 305); line(g, 190, 265, 210, 305);
+    line(g, 190, 224, 236, 220);
+    g.fillStyle = '#3b82f6'; g.beginPath(); g.arc(190, 186, 20, 0, Math.PI * 2); g.fill();
+    g.shadowColor = '#38bdf8'; g.shadowBlur = 18;
+    g.fillStyle = '#bae6fd'; roundRectPath(g, 250, 212, 40, 10, 5); g.fill();
     g.shadowBlur = 0;
-    // Zombie stickmen with glowing green eyes
-    for (const [zx, zy, sc, col] of [[204, 88, 1.0, '#4ade80'], [254, 62, 1.18, '#a3e635']] as [number, number, number, string][]) {
-      g.strokeStyle = col; g.lineWidth = 5 * sc;
-      line(g, zx, zy, zx - 4 * sc, zy + 24 * sc);
-      line(g, zx - 4 * sc, zy + 24 * sc, zx - 12 * sc, zy + 42 * sc);
-      line(g, zx - 4 * sc, zy + 24 * sc, zx + 6 * sc, zy + 42 * sc);
-      line(g, zx, zy + 5 * sc, zx - 18 * sc, zy + 2 * sc);
-      g.fillStyle = col; g.beginPath(); g.arc(zx + 2 * sc, zy - 12 * sc, 9.5 * sc, 0, Math.PI * 2); g.fill();
+    for (const [zx, zy, sc, col] of [[410, 195, 1.0, '#4ade80'], [510, 145, 1.18, '#a3e635']] as [number, number, number, string][]) {
+      g.strokeStyle = col; g.lineWidth = 9 * sc;
+      line(g, zx, zy, zx - 8 * sc, zy + 48 * sc);
+      line(g, zx - 8 * sc, zy + 48 * sc, zx - 24 * sc, zy + 84 * sc);
+      line(g, zx - 8 * sc, zy + 48 * sc, zx + 12 * sc, zy + 84 * sc);
+      line(g, zx, zy + 10 * sc, zx - 36 * sc, zy + 4 * sc);
+      g.fillStyle = col; g.beginPath(); g.arc(zx + 4 * sc, zy - 24 * sc, 18 * sc, 0, Math.PI * 2); g.fill();
       g.fillStyle = '#fef08a';
-      g.beginPath(); g.arc(zx - 1 * sc, zy - 13 * sc, 2 * sc, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(zx - 2 * sc, zy - 26 * sc, 4 * sc, 0, Math.PI * 2); g.fill();
     }
-  } else if (id === 'samurai') {
-    const sg = g.createLinearGradient(0, 0, 0, h);
-    sg.addColorStop(0, '#1f1024');
-    sg.addColorStop(0.55, '#2b151e');
-    sg.addColorStop(1, '#150d10');
-    g.fillStyle = sg;
+  } else if (id === 'meteor') {
+    // Deep volcanic cosmic nebula + shattered planet + glowing magma bridge + diagonal meteors & geyser
+    const sky = g.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#070412');
+    sky.addColorStop(0.45, '#1d0d2c');
+    sky.addColorStop(0.82, '#5c1810');
+    sky.addColorStop(1, '#1a0705');
+    g.fillStyle = sky;
     g.fillRect(0, 0, w, h);
-    // Crimson moon
-    g.fillStyle = 'rgba(251,113,133,0.22)';
-    g.beginPath(); g.arc(160, 74, 54, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#fda4af';
-    g.beginPath(); g.arc(160, 74, 34, 0, Math.PI * 2); g.fill();
-    // Katana clash crescent arcs & sparks
-    g.save();
-    g.shadowColor = '#fbbf24'; g.shadowBlur = 16;
-    g.strokeStyle = '#38bdf8'; g.lineWidth = 4;
-    g.beginPath(); g.arc(132, 98, 44, -0.7, 0.8); g.stroke();
-    g.strokeStyle = '#ef4444'; g.lineWidth = 4;
-    g.beginPath(); g.arc(188, 98, 44, Math.PI - 0.8, Math.PI + 0.7); g.stroke();
-    g.fillStyle = '#fde047';
-    for (const [sx, sy] of [[160, 96], [150, 82], [172, 110], [164, 72]]) {
-      g.beginPath(); g.arc(sx, sy, 3.2, 0, Math.PI * 2); g.fill();
+
+    for (let i = 0; i < 48; i++) {
+      const sx = (i * 97 + 23) % w;
+      const sy = (i * 53 + 11) % 230;
+      g.fillStyle = i % 3 === 0 ? 'rgba(253,224,71,0.78)' : 'rgba(226,232,240,0.62)';
+      g.beginPath(); g.arc(sx, sy, (i % 2) + 1, 0, Math.PI * 2); g.fill();
     }
-    g.restore();
-    // Sakura petals
-    g.fillStyle = '#f9a8d4';
-    for (const [px, py] of [[44, 38], [88, 128], [232, 42], [276, 118]]) {
-      g.beginPath(); g.ellipse(px, py, 4, 2.2, 0.6, 0, Math.PI * 2); g.fill();
-    }
-  } else if (id === 'sniper') {
-    const ng = g.createLinearGradient(0, 0, 0, h);
-    ng.addColorStop(0, '#090d16');
-    ng.addColorStop(1, '#111827');
-    g.fillStyle = ng; g.fillRect(0, 0, w, h);
-    // Cover pillars
-    g.fillStyle = '#27272a';
-    roundRectPath(g, 110, 44, 28, 76, 4); g.fill();
-    roundRectPath(g, 186, 72, 28, 76, 4); g.fill();
-    g.strokeStyle = '#52525b'; g.lineWidth = 1.5;
-    g.strokeRect(110, 44, 28, 76); g.strokeRect(186, 72, 28, 76);
-    // Ricochet sniper laser trace
+
+    // Shattered glowing exoplanet
+    const px = 495;
+    const py = 96;
+    const pg = g.createRadialGradient(px - 16, py - 16, 6, px, py, 56);
+    pg.addColorStop(0, '#fb923c');
+    pg.addColorStop(0.55, '#9f1239');
+    pg.addColorStop(1, '#1e1b4b');
+    g.fillStyle = pg;
+    g.beginPath(); g.arc(px, py, 50, 0, Math.PI * 2); g.fill();
     g.save();
-    g.shadowColor = '#ef4444'; g.shadowBlur = 14;
-    g.strokeStyle = '#ef4444'; g.lineWidth = 3;
-    g.beginPath(); g.moveTo(38, 124); g.lineTo(148, 22); g.lineTo(278, 112); g.stroke();
-    g.strokeStyle = '#ffffff'; g.lineWidth = 1.2;
-    g.beginPath(); g.moveTo(38, 124); g.lineTo(148, 22); g.lineTo(278, 112); g.stroke();
+    g.translate(px, py);
+    g.rotate(-0.26);
+    g.strokeStyle = 'rgba(253,186,116,0.5)';
+    g.lineWidth = 6;
+    g.beginPath(); g.ellipse(0, 0, 88, 19, 0, 0, Math.PI * 2); g.stroke();
     g.restore();
-    // Scope crosshair reticle
-    g.strokeStyle = 'rgba(239,68,68,0.75)'; g.lineWidth = 1.6;
-    g.beginPath(); g.arc(248, 90, 22, 0, Math.PI * 2); g.stroke();
-    line(g, 220, 90, 276, 90); line(g, 248, 62, 248, 118);
-  } else if (id === 'blades') {
-    const bg2 = g.createRadialGradient(160, 90, 16, 160, 90, 170);
-    bg2.addColorStop(0, '#271418');
-    bg2.addColorStop(1, '#09090b');
-    g.fillStyle = bg2; g.fillRect(0, 0, w, h);
-    g.strokeStyle = 'rgba(249,115,22,0.28)'; g.lineWidth = 4;
-    g.strokeRect(14, 14, w - 28, h - 28);
-    // Two jagged buzzsaws with motion streaks
-    for (const [bx, by, br] of [[106, 86, 26], [220, 102, 22]] as [number, number, number][]) {
+
+    // Jagged volcanic mountains with magma veins
+    g.fillStyle = '#180c18';
+    g.beginPath();
+    g.moveTo(0, 325); g.lineTo(90, 212); g.lineTo(195, 276); g.lineTo(310, 195);
+    g.lineTo(445, 268); g.lineTo(565, 214); g.lineTo(640, 280); g.lineTo(640, 400); g.lineTo(0, 400);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = 'rgba(249,115,22,0.55)'; g.lineWidth = 2.5;
+    line(g, 90, 212, 112, 290);
+    line(g, 310, 195, 290, 285);
+    line(g, 565, 214, 540, 298);
+
+    // Molten river abyss below bridge
+    const lava = g.createLinearGradient(0, 340, 0, h);
+    lava.addColorStop(0, '#7c2d12');
+    lava.addColorStop(0.45, '#ea580c');
+    lava.addColorStop(1, '#facc15');
+    g.fillStyle = lava;
+    g.fillRect(0, 340, w, 60);
+
+    // Steel truss bridge deck
+    g.fillStyle = '#334155';
+    g.fillRect(0, 326, w, 18);
+    g.fillStyle = '#f97316';
+    g.fillRect(0, 325, w, 3.5);
+
+    // Erupting magma geyser column on left
+    const gey = g.createLinearGradient(0, 190, 0, 330);
+    gey.addColorStop(0, 'rgba(253,224,71,0)');
+    gey.addColorStop(0.4, 'rgba(249,115,22,0.8)');
+    gey.addColorStop(1, 'rgba(254,240,138,0.95)');
+    g.fillStyle = gey;
+    roundRectPath(g, 82, 190, 34, 140, 16); g.fill();
+
+    // Diagonal piercing meteors
+    for (const [mx, my, mr] of [[240, 138, 30], [456, 126, 26], [358, 56, 17]] as [number, number, number][]) {
       g.save();
-      g.translate(bx, by);
-      g.shadowColor = '#f97316'; g.shadowBlur = 16;
-      g.fillStyle = '#d4d4d8';
+      const tail = g.createLinearGradient(mx - mr * 2.8, my - mr * 3.8, mx, my);
+      tail.addColorStop(0, 'rgba(251,146,60,0)');
+      tail.addColorStop(0.6, 'rgba(249,115,22,0.58)');
+      tail.addColorStop(1, 'rgba(254,240,138,0.96)');
+      g.fillStyle = tail;
       g.beginPath();
-      const teeth = 12;
-      for (let t = 0; t < teeth; t++) {
-        const a1 = (t / teeth) * Math.PI * 2;
-        const a2 = ((t + 0.5) / teeth) * Math.PI * 2;
-        if (t === 0) g.moveTo(Math.cos(a1) * (br + 6), Math.sin(a1) * (br + 6));
-        else g.lineTo(Math.cos(a1) * (br + 6), Math.sin(a1) * (br + 6));
-        g.lineTo(Math.cos(a2) * (br - 4), Math.sin(a2) * (br - 4));
-      }
+      g.moveTo(mx - mr * 2.8, my - mr * 3.8);
+      g.lineTo(mx + mr * 0.72, my - mr * 0.65);
+      g.lineTo(mx - mr * 0.72, my + mr * 0.65);
       g.closePath();
       g.fill();
-      g.fillStyle = '#ef4444'; g.beginPath(); g.arc(0, 0, br * 0.36, 0, Math.PI * 2); g.fill();
+
+      g.shadowColor = '#f97316'; g.shadowBlur = 22;
+      const mg = g.createRadialGradient(mx - mr * 0.25, my - mr * 0.25, 3, mx, my, mr);
+      mg.addColorStop(0, '#fef08a');
+      mg.addColorStop(0.5, '#ea580c');
+      mg.addColorStop(1, '#431407');
+      g.fillStyle = mg;
+      g.beginPath(); g.arc(mx, my, mr, 0, Math.PI * 2); g.fill();
       g.restore();
     }
-  } else if (id === 'sumo') {
-    const rg = g.createRadialGradient(160, 96, 14, 160, 96, 102);
-    rg.addColorStop(0, '#6a4b29');
-    rg.addColorStop(1, '#26180c');
-    g.fillStyle = rg;
-    g.beginPath(); g.ellipse(160, 96, 98, 62, 0, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = '#fbbf24'; g.lineWidth = 4; g.setLineDash([12, 6]); g.stroke(); g.setLineDash([]);
-    g.strokeStyle = 'rgba(255,255,255,0.2)'; g.lineWidth = 2;
-    g.beginPath(); g.ellipse(160, 96, 54, 34, 0, 0, Math.PI * 2); g.stroke();
-    g.fillStyle = '#3b82f6'; g.beginPath(); g.arc(130, 92, 13, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#ef4444'; g.beginPath(); g.arc(190, 96, 13, 0, Math.PI * 2); g.fill();
-  } else if (id === 'futbol') {
-    const fg = g.createLinearGradient(0, 22, 0, 158);
-    fg.addColorStop(0, '#166534'); fg.addColorStop(1, '#0c4321');
-    g.fillStyle = fg; g.fillRect(20, 22, 280, 136);
-    g.fillStyle = 'rgba(255,255,255,0.05)';
-    for (let x = 20; x < 300; x += 56) g.fillRect(x, 22, 28, 136);
-    g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 2;
-    g.strokeRect(20, 22, 280, 136);
-    line(g, 160, 22, 160, 158);
-    g.beginPath(); g.arc(160, 90, 28, 0, Math.PI * 2); g.stroke();
-    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(160, 90, 11, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#18181b'; g.beginPath(); g.arc(160, 90, 4.5, 0, Math.PI * 2); g.fill();
-  } else if (id === 'laser') {
-    g.strokeStyle = 'rgba(56,189,248,0.12)';
-    for (let x = 0; x < w; x += 28) line(g, x, 0, x, h);
-    for (let y = 0; y < h; y += 28) line(g, 0, y, w, y);
-    for (const [x1, y1, x2, y2, col] of [
-      [0, 52, 320, 128, '#ef4444'],
-      [45, 0, 260, 180, '#38bdf8'],
-      [0, 132, 320, 38, '#a855f7'],
-    ] as [number, number, number, number, string][]) {
-      g.save();
-      g.shadowColor = col; g.shadowBlur = 16;
-      g.strokeStyle = col; g.lineWidth = 8; line(g, x1, y1, x2, y2);
-      g.strokeStyle = '#ffffff'; g.lineWidth = 2.5; line(g, x1, y1, x2, y2);
-      g.restore();
+
+    // Stickman leaping across catwalk
+    g.strokeStyle = '#38bdf8'; g.lineWidth = 8; g.lineCap = 'round';
+    line(g, 330, 275, 336, 304);
+    line(g, 336, 304, 316, 322); line(g, 336, 304, 356, 318);
+    line(g, 330, 280, 310, 268); line(g, 330, 280, 352, 266);
+    g.fillStyle = '#38bdf8'; g.beginPath(); g.arc(328, 256, 13, 0, Math.PI * 2); g.fill();
+  } else if (id === 'inferno') {
+    // Rising Lava Steel Foundry Shaft: Giant gears, pouring molten metal chutes, catwalks & rising magma
+    const bg2 = g.createLinearGradient(0, 0, 0, h);
+    bg2.addColorStop(0, '#120705');
+    bg2.addColorStop(0.55, '#290f08');
+    bg2.addColorStop(1, '#581c0c');
+    g.fillStyle = bg2; g.fillRect(0, 0, w, h);
+
+    // Giant foundry gear silhouettes
+    g.strokeStyle = 'rgba(255,255,255,0.06)';
+    g.lineWidth = 14;
+    for (const [gx, gy, gr] of [[155, 135, 86], [490, 175, 96]] as [number, number, number][]) {
+      g.beginPath(); g.arc(gx, gy, gr, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.arc(gx, gy, gr * 0.42, 0, Math.PI * 2); g.stroke();
     }
-    g.fillStyle = '#38bdf8'; g.beginPath(); g.arc(160, 90, 10, 0, Math.PI * 2); g.fill();
-  } else if (id === 'lava') {
-    const lv = g.createLinearGradient(0, 0, 0, h);
-    lv.addColorStop(0, '#09090b'); lv.addColorStop(0.6, '#2b0d0d'); lv.addColorStop(1, '#7c2d12');
-    g.fillStyle = lv; g.fillRect(0, 0, w, h);
-    for (const [px, py, pw, spring] of [[38, 114, 90, true], [176, 90, 100, false], [92, 56, 95, false]] as [number, number, number, boolean][]) {
-      g.fillStyle = '#27272a'; roundRectPath(g, px, py, pw, 12, 4); g.fill();
-      g.fillStyle = spring ? '#4ade80' : '#f59e0b'; g.fillRect(px + 2, py, pw - 4, 3.5);
+
+    // Glowing molten metal pouring chute in background
+    const pour = g.createLinearGradient(300, 0, 340, 0);
+    pour.addColorStop(0, 'rgba(249,115,22,0)');
+    pour.addColorStop(0.5, 'rgba(253,224,71,0.85)');
+    pour.addColorStop(1, 'rgba(249,115,22,0)');
+    g.fillStyle = pour;
+    g.fillRect(298, 0, 44, 330);
+
+    // Industrial steel catwalks & green hydraulic bounce piston
+    for (const [px, py, pw] of [[68, 128, 200], [360, 188, 210], [115, 256, 225]]) {
+      g.fillStyle = '#27272a';
+      roundRectPath(g, px, py, pw, 16, 4); g.fill();
+      g.fillStyle = '#f97316';
+      g.fillRect(px + 2, py, pw - 4, 4);
     }
-    const mg = g.createLinearGradient(0, 136, 0, h);
-    mg.addColorStop(0, '#fde047'); mg.addColorStop(0.3, '#f97316'); mg.addColorStop(1, '#7c2d12');
-    g.fillStyle = mg; g.fillRect(0, 138, w, 42);
-  } else if (id === 'race') {
-    const bg = g.createLinearGradient(0, 0, 0, h);
-    bg.addColorStop(0, '#10141a'); bg.addColorStop(1, '#0b0e12');
-    g.fillStyle = bg; g.fillRect(0, 0, w, h);
-    // Factory pipes + amber LED glow
-    g.fillStyle = '#181e27'; g.fillRect(82, 0, 14, h); g.fillRect(228, 0, 14, h);
-    g.fillStyle = '#f59e0b'; g.fillRect(62, 54, 4, 4); g.fillRect(258, 38, 4, 4);
-    // Raised concrete floors + open saw chasm
-    g.fillStyle = '#2d333d'; g.fillRect(0, 108, 96, 72); g.fillRect(224, 108, 96, 72);
-    g.fillStyle = '#525b69'; g.fillRect(0, 108, 96, 4); g.fillRect(224, 108, 96, 4);
-    // Golden-rimmed spinning factory buzzsaws
-    for (const [sx, sy] of [[132, 134], [186, 108]]) {
-      g.save();
-      g.shadowColor = '#f59e0b'; g.shadowBlur = 14;
-      g.fillStyle = '#cbd5e1'; g.beginPath(); g.arc(sx, sy, 22, 0, Math.PI * 2); g.fill();
-      g.shadowBlur = 0;
-      g.strokeStyle = '#fbbf24'; g.lineWidth = 2.5; g.stroke();
-      g.fillStyle = '#18181b'; g.beginPath(); g.arc(sx, sy, 6, 0, Math.PI * 2); g.fill();
-      g.restore();
+    g.fillStyle = '#4ade80';
+    roundRectPath(g, 280, 246, 52, 10, 4); g.fill();
+
+    // Glowing Summit Escape Beacon at top
+    const esc = g.createRadialGradient(168, 92, 4, 168, 92, 54);
+    esc.addColorStop(0, 'rgba(74,222,128,0.85)');
+    esc.addColorStop(1, 'transparent');
+    g.fillStyle = esc; g.fillRect(100, 30, 140, 120);
+    g.strokeStyle = '#4ade80'; g.lineWidth = 3;
+    roundRectPath(g, 142, 74, 52, 52, 10); g.stroke();
+
+    // Roiling molten lava rising from bottom
+    const lava = g.createLinearGradient(0, 305, 0, h);
+    lava.addColorStop(0, '#fef08a');
+    lava.addColorStop(0.22, '#f97316');
+    lava.addColorStop(0.7, '#dc2626');
+    lava.addColorStop(1, '#7f1d1d');
+    g.fillStyle = lava;
+    g.beginPath();
+    g.moveTo(0, 326);
+    for (let lx = 0; lx <= w; lx += 32) {
+      g.lineTo(lx, 320 + Math.sin(lx * 0.04) * 9);
     }
-    // Jumping stickman silhouette
-    g.fillStyle = '#09090b'; g.beginPath(); g.arc(160, 52, 7, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = '#09090b'; g.lineWidth = 4; g.lineCap = 'round';
-    line(g, 160, 59, 152, 74); line(g, 152, 74, 140, 82); line(g, 152, 74, 168, 84);
-    // Chasm caution stripe
-    g.fillStyle = '#f59e0b'; g.fillRect(96, 166, 128, 4);
-  } else if (id === 'bomb') {
-    g.fillStyle = 'rgba(239,68,68,0.18)';
-    g.beginPath(); g.arc(160, 96, 62, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#09090b'; g.strokeStyle = '#e4e4e7'; g.lineWidth = 3;
-    g.beginPath(); g.arc(160, 98, 28, 0, Math.PI * 2); g.fill(); g.stroke();
-    g.strokeStyle = '#f59e0b'; g.lineWidth = 4; line(g, 174, 74, 190, 54);
-    g.fillStyle = '#fde047'; g.beginPath(); g.arc(192, 52, 7, 0, Math.PI * 2); g.fill();
+    g.lineTo(w, h); g.lineTo(0, h); g.closePath();
+    g.fill();
+
+    // Climbers racing upward
+    for (const [cx, cy, col] of [[168, 224, '#3b82f6'], [450, 156, '#ef4444']] as [number, number, string][]) {
+      g.strokeStyle = col; g.lineWidth = 8; g.lineCap = 'round';
+      line(g, cx, cy - 12, cx, cy + 14);
+      line(g, cx, cy + 14, cx - 12, cy + 32); line(g, cx, cy + 14, cx + 12, cy + 32);
+      g.fillStyle = col; g.beginPath(); g.arc(cx, cy - 26, 12, 0, Math.PI * 2); g.fill();
+    }
+  } else if (id === 'storm') {
+    // Midnight Storm Cargo Ship: Lightning fork, heavy rain, bridge cabin, stacked containers, giant sea waves
+    const sky = g.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#020611');
+    sky.addColorStop(0.52, '#0b192e');
+    sky.addColorStop(1, '#082538');
+    g.fillStyle = sky; g.fillRect(0, 0, w, h);
+
+    // Jagged Lightning Bolt from storm cloud
+    g.save();
+    g.shadowColor = '#38bdf8'; g.shadowBlur = 26;
+    g.strokeStyle = '#e0f2fe'; g.lineWidth = 5;
+    g.beginPath();
+    g.moveTo(452, 0); g.lineTo(426, 72); g.lineTo(462, 134); g.lineTo(424, 215); g.lineTo(446, 300);
+    g.stroke();
+    g.restore();
+
+    // Diagonal rain streaks
+    g.strokeStyle = 'rgba(186,230,253,0.28)'; g.lineWidth = 1.6;
+    for (let i = 0; i < 40; i++) {
+      const rx = (i * 53 + 17) % w;
+      const ry = (i * 39 + 11) % 320;
+      line(g, rx, ry, rx - 10, ry + 26);
+    }
+
+    // Ship Captain's Bridge & Mast
+    g.fillStyle = '#1e293b';
+    roundRectPath(g, 88, 178, 122, 138, 6); g.fill();
+    g.fillStyle = '#fef08a';
+    for (const wx of [106, 136, 166]) {
+      g.fillRect(wx, 198, 20, 14);
+    }
+    g.strokeStyle = '#475569'; g.lineWidth = 6;
+    line(g, 330, 70, 330, 315);
+    g.lineWidth = 2;
+    line(g, 330, 92, 190, 210);
+    line(g, 330, 92, 510, 250);
+
+    // Cargo containers on ship deck
+    g.fillStyle = '#7f1d1d';
+    roundRectPath(g, 355, 254, 132, 60, 5); g.fill();
+    g.fillStyle = '#1e3a5f';
+    roundRectPath(g, 240, 266, 102, 48, 5); g.fill();
+
+    // Ship Steel Hull Deck
+    g.fillStyle = '#0f172a';
+    g.beginPath();
+    g.moveTo(52, 314); g.lineTo(588, 314); g.lineTo(558, 366); g.lineTo(82, 366); g.closePath();
+    g.fill();
+    g.fillStyle = '#ef4444';
+    g.fillRect(64, 314, 512, 5);
+
+    // Raging Ocean Waves at bottom
+    const sea = g.createLinearGradient(0, 334, 0, h);
+    sea.addColorStop(0, '#0284c7');
+    sea.addColorStop(0.4, '#0c4a6e');
+    sea.addColorStop(1, '#021728');
+    g.fillStyle = sea;
+    g.beginPath();
+    g.moveTo(0, 344);
+    for (let sx = 0; sx <= w; sx += 32) {
+      g.lineTo(sx, 342 + Math.sin(sx * 0.035) * 10);
+    }
+    g.lineTo(w, h); g.lineTo(0, h); g.closePath();
+    g.fill();
+
+    // Fighters on ship
+    for (const [fx, fy, col] of [[290, 232, '#3b82f6'], [415, 220, '#10b981']] as [number, number, string][]) {
+      g.strokeStyle = col; g.lineWidth = 8; g.lineCap = 'round';
+      line(g, fx, fy - 10, fx, fy + 16);
+      line(g, fx, fy + 16, fx - 12, fy + 34); line(g, fx, fy + 16, fx + 12, fy + 34);
+      g.fillStyle = col; g.beginPath(); g.arc(fx, fy - 24, 12, 0, Math.PI * 2); g.fill();
+    }
+  } else if (id === 'avalanche') {
+    // Snow Avalanche Canyon Descent: Winter dusk aurora, pine peaks, flat snow floors with open gaps & billowing avalanche wall
+    const sky = g.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#041224');
+    sky.addColorStop(0.5, '#0b223d');
+    sky.addColorStop(1, '#102a43');
+    g.fillStyle = sky; g.fillRect(0, 0, w, h);
+
+    // Aurora glow
+    const aur = g.createRadialGradient(w * 0.55, 85, 10, w * 0.55, 85, 280);
+    aur.addColorStop(0, 'rgba(56,189,248,0.32)');
+    aur.addColorStop(0.55, 'rgba(34,211,238,0.12)');
+    aur.addColorStop(1, 'transparent');
+    g.fillStyle = aur; g.fillRect(0, 0, w, h);
+
+    // Alpine peaks & canyon walls
+    g.fillStyle = '#07172a';
+    g.beginPath();
+    g.moveTo(0, h); g.lineTo(0, 180); g.lineTo(130, 95); g.lineTo(270, 175);
+    g.lineTo(420, 88); g.lineTo(540, 165); g.lineTo(w, 120); g.lineTo(w, h);
+    g.closePath(); g.fill();
+
+    // Gorge side cliffs
+    g.fillStyle = '#0c1c2e';
+    g.fillRect(0, 0, 42, h);
+    g.fillRect(w - 42, 0, 42, h);
+
+    // Flat snow-capped canyon platforms with open drop gaps
+    const floors: [number, number, number][] = [
+      [42, 160, 180], [320, 160, 278],
+      [42, 240, 340], [475, 240, 123],
+      [42, 322, 195], [335, 322, 263],
+    ];
+    for (const [px, py, pw] of floors) {
+      g.fillStyle = '#1e293b';
+      roundRectPath(g, px, py, pw, 16, 4); g.fill();
+      g.fillStyle = '#f1f5f9';
+      roundRectPath(g, px + 2, py, pw - 4, 6, 3); g.fill();
+    }
+
+    // Glowing gap cues
+    g.fillStyle = 'rgba(56,189,248,0.85)';
+    g.font = '800 22px sans-serif';
+    g.textAlign = 'center';
+    g.fillText('▾', 272, 162);
+    g.fillText('▾', 428, 242);
+    g.fillText('▾', 286, 324);
+
+    // Roaring Snow Avalanche Wall descending from the top
+    const avaGrad = g.createLinearGradient(0, 0, 0, 128);
+    avaGrad.addColorStop(0, '#ffffff');
+    avaGrad.addColorStop(0.65, '#e0f2fe');
+    avaGrad.addColorStop(1, '#7dd3fc');
+    g.fillStyle = avaGrad;
+    g.fillRect(0, 0, w, 92);
+    for (let cx = 20; cx <= w - 20; cx += 52) {
+      g.beginPath();
+      g.arc(cx, 92 + ((cx * 7) % 16), 38 + ((cx * 3) % 14), 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // Drifting snowflakes
+    g.fillStyle = 'rgba(255,255,255,0.75)';
+    for (let i = 0; i < 28; i++) {
+      const sx = (i * 73 + 24) % w;
+      const sy = (i * 47 + 115) % h;
+      g.beginPath(); g.arc(sx, sy, 2 + (i % 2), 0, Math.PI * 2); g.fill();
+    }
+
+    // Stickmen racing down toward open gaps
+    for (const [fx, fy, col] of [[248, 128, '#3b82f6'], [382, 208, '#ef4444']] as [number, number, string][]) {
+      g.strokeStyle = col; g.lineWidth = 8; g.lineCap = 'round';
+      line(g, fx, fy - 10, fx, fy + 16);
+      line(g, fx, fy + 16, fx - 12, fy + 34); line(g, fx, fy + 16, fx + 12, fy + 34);
+      g.fillStyle = col; g.beginPath(); g.arc(fx, fy - 24, 12, 0, Math.PI * 2); g.fill();
+    }
   }
 
   const url = c.toDataURL('image/png');
@@ -996,16 +1134,7 @@ export function getMinigamePng(id: MinigameId): string {
   return url;
 }
 
-export const MINIGAME_ARTWORK: Record<MinigameId, string> = {
+export const MINIGAME_ARTWORK: Partial<Record<MinigameId, string>> = {
   zombie: miniZombieImg,
-  samurai: miniSamuraiImg,
-  sniper: miniSniperImg,
-  blades: miniBladesImg,
-  sumo: miniSumoImg,
-  futbol: miniFutbolImg,
-  laser: miniLaserImg,
-  lava: miniLavaImg,
-  bomb: miniBombImg,
-  race: '/assets/aistudio/image_b14fa0bd.png',
 };
 

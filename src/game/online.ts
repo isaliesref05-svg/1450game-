@@ -192,7 +192,7 @@ class OnlineManager {
     rounds: 3,
     weapons: ['sword', 'sword', 'sword', 'sword'],
     loot: false,
-    mini: 'sumo',
+    mini: 'zombie',
   };
   private netFrame = 0;
   private joinTimer: ReturnType<typeof setTimeout> | null = null;

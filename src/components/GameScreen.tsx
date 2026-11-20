@@ -15,7 +15,7 @@ import { PartyAudio } from '../game/audio';
 import { MATCH_BASE_REWARD, MATCH_WIN_BONUS, PartyEconomy } from '../game/economy';
 import { ARENA_H, ARENA_W } from '../game/maps';
 import { fightEngine } from '../game/fightEngine';
-import { minigameEngine } from '../game/minigameEngine';
+import { minigameEngine, ZombieRevivePrompt } from '../game/minigameEngine';
 import { onlineManager } from '../game/online';
 import { inputPlayers, MapId, MinigameId, PLAYER_COLORS, PLAYER_NAMES, resetInputs, WeaponChoice } from '../game/types';
 import { JoystickLayer } from './JoystickLayer';
@@ -60,7 +60,16 @@ export function GameScreen({
     winners: number[];
     earned: { base: number; bonus: number; total: number } | null;
   } | null>(null);
+  const [zombieRevive, setZombieRevive] = useState<ZombieRevivePrompt | null>(null);
+  const [walletCoins, setWalletCoins] = useState(() => PartyEconomy.coins());
   const [portraitDismissed, setPortraitDismissed] = useState(false);
+
+  useEffect(() => {
+    setWalletCoins(PartyEconomy.coins());
+    return PartyEconomy.subscribe(() => {
+      setWalletCoins(PartyEconomy.coins());
+    });
+  }, []);
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -68,6 +77,7 @@ export function GameScreen({
     resetInputs();
     setPaused(false);
     setWinnerState(null);
+    setZombieRevive(null);
 
     const onEnd = (scores: number[], winners: number[]) => {
       const reward = PartyEconomy.awardMatch(MATCH_WIN_BONUS);
@@ -120,6 +130,9 @@ export function GameScreen({
             setRoundInfo({ round, maxRounds });
           },
           onMatchEnd: onEnd,
+          onZombieRevivePrompt: (info) => {
+            setZombieRevive(info);
+          },
           onSendNet: () => {
             onlineManager.sendNetTick(
               'minigames',
@@ -144,12 +157,13 @@ export function GameScreen({
     if (rematchSignal > 0) {
       setPaused(false);
       setWinnerState(null);
+      setZombieRevive(null);
       resetInputs();
     }
   }, [rematchSignal]);
 
   const togglePause = () => {
-    if (winnerState) return;
+    if (winnerState || zombieRevive) return;
     const next = !paused;
     setPaused(next);
     if (config.mode === 'vs') fightEngine.setPaused(next);
@@ -159,12 +173,30 @@ export function GameScreen({
   const restartMatch = () => {
     setPaused(false);
     setWinnerState(null);
+    setZombieRevive(null);
     resetInputs();
     if (config.onlineMode) {
       onlineManager.sendRematch();
     }
     if (config.mode === 'vs') fightEngine.restart();
     else minigameEngine.restart();
+  };
+
+  const handleZombieContinue = () => {
+    if (!zombieRevive || config.netRole === 'guest') return;
+    if (!PartyEconomy.spendCoins(zombieRevive.cost)) {
+      PartyAudio.play('error');
+      return;
+    }
+    PartyAudio.play('coin');
+    setZombieRevive(null);
+    minigameEngine.continueZombieAfterDeath();
+  };
+
+  const handleZombieDecline = () => {
+    if (!zombieRevive || config.netRole === 'guest') return;
+    setZombieRevive(null);
+    minigameEngine.declineZombieContinue();
   };
 
   const exitMatch = () => {
@@ -177,11 +209,11 @@ export function GameScreen({
   const onlineAimMini =
     config.onlineMode &&
     config.mode === 'minigames' &&
-    (config.mini === 'zombie' || config.mini === 'sniper' || config.mini === 'samurai');
+    config.mini === 'zombie';
   const allowMouseAim = config.onlineMode && (config.mode === 'vs' || onlineAimMini);
 
   const updateMouseAim = (clientX: number, clientY: number) => {
-    if (!allowMouseAim || paused || winnerState) return;
+    if (!allowMouseAim || paused || winnerState || zombieRevive) return;
     const cv = canvasRef.current;
     if (!cv) return;
     const rect = cv.getBoundingClientRect();
@@ -213,7 +245,7 @@ export function GameScreen({
           if (e.pointerType === 'mouse') updateMouseAim(e.clientX, e.clientY);
         }}
         onPointerDown={(e) => {
-          if (e.pointerType === 'mouse' && e.button === 0 && allowMouseAim && !paused && !winnerState) {
+          if (e.pointerType === 'mouse' && e.button === 0 && allowMouseAim && !paused && !winnerState && !zombieRevive) {
             updateMouseAim(e.clientX, e.clientY);
             inputPlayers[0].action = true;
           }
@@ -227,7 +259,7 @@ export function GameScreen({
           inputPlayers[0].aimAngle = null;
           inputPlayers[0].action = false;
         }}
-        className={`w-full h-full block touch-none ${allowMouseAim && !paused && !winnerState ? 'cursor-crosshair' : ''}`}
+        className={`w-full h-full block touch-none ${allowMouseAim && !paused && !winnerState && !zombieRevive ? 'cursor-crosshair' : ''}`}
       />
 
       {/* Compact Top Monochrome HUD */}
@@ -292,7 +324,7 @@ export function GameScreen({
       )}
 
       {/* Analog Joysticks */}
-      {!paused && !winnerState && (
+      {!paused && !winnerState && !zombieRevive && (
         <JoystickLayer
           playerCount={config.playerCount}
           onlineMode={config.onlineMode}
@@ -300,8 +332,82 @@ export function GameScreen({
         />
       )}
 
+      {/* Zombie Paid Continue Modal */}
+      {zombieRevive && !winnerState && (
+        <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-[#111216] border border-red-500/45 p-5 flex flex-col gap-3.5 shadow-[0_24px_60px_-15px_rgba(239,68,68,0.35)]">
+            <div className="text-center flex flex-col items-center gap-1">
+              <span className="px-2.5 py-0.5 rounded-md bg-red-500/15 border border-red-500/40 text-[10px] font-mono font-bold text-red-300 uppercase tracking-wider">
+                DALĞA {zombieRevive.wave} / {zombieRevive.maxWaves}
+              </span>
+              <h3 className="font-display text-3xl font-extrabold text-white tracking-wide mt-0.5">
+                QALDIĞIN YERDƏN DAVAM ET?
+              </h3>
+              <p className="text-xs text-zinc-400">
+                Öldürülən zombi: <strong className="text-white">{zombieRevive.kills}</strong> · Hər dalğada +10 Coin artır (maks. 1,000)
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2.5">
+                <div className="text-[10px] font-mono uppercase text-zinc-500">Davam Haqqı</div>
+                <div className="font-mono text-base font-extrabold text-amber-300 flex items-center gap-1 mt-0.5">
+                  <Coins className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>{zombieRevive.cost.toLocaleString('en-US')}</span>
+                </div>
+              </div>
+              <div className="rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2.5">
+                <div className="text-[10px] font-mono uppercase text-zinc-500">Sənin Balansın</div>
+                <div
+                  className={`font-mono text-base font-extrabold flex items-center gap-1 mt-0.5 ${
+                    walletCoins >= zombieRevive.cost ? 'text-emerald-300' : 'text-red-400'
+                  }`}
+                >
+                  <Coins className="w-4 h-4 shrink-0" />
+                  <span>{walletCoins.toLocaleString('en-US')}</span>
+                </div>
+              </div>
+            </div>
+
+            {config.netRole === 'guest' ? (
+              <div className="rounded-xl bg-zinc-950 border border-zinc-800 px-3.5 py-3 text-center text-xs font-semibold text-zinc-300">
+                Host qaldığınız yerdən davam etmə qərarı verir...
+              </div>
+            ) : (
+              <>
+                {walletCoins < zombieRevive.cost && (
+                  <div className="rounded-lg bg-red-950/60 border border-red-500/40 px-3 py-2 text-center text-[11px] font-semibold text-red-200">
+                    Balans kifayət etmir ({(zombieRevive.cost - walletCoins).toLocaleString('en-US')} Coin çatışmır)
+                  </div>
+                )}
+
+                <div className="flex gap-2.5 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={handleZombieDecline}
+                    className="flex-1 h-11 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold text-sm flex items-center justify-center gap-1.5"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>Bitir</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={walletCoins < zombieRevive.cost}
+                    onClick={handleZombieContinue}
+                    className="flex-[1.4] h-11 rounded-xl bg-white hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-950 font-extrabold text-sm flex items-center justify-center gap-1.5"
+                  >
+                    <Play className="w-4 h-4 fill-zinc-950" />
+                    <span>Davam Et (-{zombieRevive.cost.toLocaleString('en-US')})</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Pause Modal */}
-      {paused && !winnerState && (
+      {paused && !winnerState && !zombieRevive && (
         <div className="fixed inset-0 z-40 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-xs rounded-2xl bg-[#111216] border border-zinc-700 p-5 flex flex-col gap-3">
             <h3 className="font-display text-3xl font-extrabold text-white text-center tracking-wide">

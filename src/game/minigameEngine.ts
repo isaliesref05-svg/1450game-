@@ -3,7 +3,6 @@ import { PartyEconomy } from './economy';
 import { roundRectPath } from './maps';
 import {
   applyRagdollImpulse,
-  applyWeaponKickToRig,
   convertRigToDead,
   createRagdollRig,
   drawRagdollStickman,
@@ -96,12 +95,13 @@ interface MiniProjectile {
   vy: number;
   owner: number;
   life: number;
+  maxLife?: number;
   snow: boolean;
   color?: string;
   radius?: number;
   bounces?: number;
   dmg?: number;
-  kind?: 'bolt' | 'shotgun' | 'sniper' | 'grenade';
+  kind?: 'bolt' | 'shotgun' | 'grenade' | 'shell' | 'laser';
 }
 
 interface CoinItem {
@@ -110,7 +110,7 @@ interface CoinItem {
   radius: number;
   life: number;
   diamond: boolean;
-  kind?: 'shotgun' | 'rapid' | 'medkit' | 'shield' | 'paintbomb' | 'grenade' | 'power' | 'repair';
+  kind?: 'shotgun' | 'rapid' | 'medkit' | 'shield' | 'grenade' | 'power' | 'repair';
 }
 
 interface ZombieEntity {
@@ -133,32 +133,6 @@ interface ZombieBarrel {
   respawnT: number;
 }
 
-interface SawBlade {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  r: number;
-  rot: number;
-}
-
-interface ArenaPillar {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-interface SlashArc {
-  x: number;
-  y: number;
-  angle: number;
-  color: string;
-  life: number;
-  maxLife: number;
-  radius: number;
-}
-
 interface RingFx {
   x: number;
   y: number;
@@ -169,51 +143,70 @@ interface RingFx {
   maxLife: number;
 }
 
-interface RaceObstacle {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  kind?: 'crate' | 'wall' | 'platform' | 'spring' | 'boost' | 'floor' | 'saw';
-  r?: number;
-  baseY?: number;
-  dy?: number;
-  speed?: number;
-}
-
-interface LaserBeam {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  warn: number;
-  active: number;
-  width: number;
-  color: string;
-}
-
-interface LavaPlat {
-  x: number;
-  y: number;
-  w: number;
-  dx: number;
-  minX: number;
-  maxX: number;
-  kind?: 'stone' | 'spring' | 'crumble';
-  crumbleT?: number;
-}
-
-interface MiniBall {
+interface MeteorDrop {
   x: number;
   y: number;
   vx: number;
   vy: number;
-  radius: number;
-  lastKicker: number;
-  holder: number;
-  fuse: number;
-  noPick: number;
-  maxFuse?: number;
+  r: number;
+  warn: number;
+  maxWarn: number;
+  cluster: boolean;
+  startX: number;
+  targetX: number;
+}
+
+interface MeteorCrater {
+  x: number;
+  y: number;
+  r: number;
+  life: number;
+  maxLife: number;
+}
+
+interface MeteorGeyser {
+  x: number;
+  warn: number;
+  eruptT: number;
+  h: number;
+}
+
+interface MeteorPlat {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  spring?: boolean;
+  kind?: 'steel' | 'container' | 'bridge' | 'crate' | 'hatch' | 'summit' | 'snow';
+  color?: string;
+}
+
+interface InfernoSlag {
+  x: number;
+  y: number;
+  vy: number;
+  r: number;
+  warn: number;
+}
+
+interface StormBolt {
+  x: number;
+  warn: number;
+  flash: number;
+  r: number;
+}
+
+interface StormWave {
+  side: -1 | 1;
+  warn: number;
+  active: number;
+  x: number;
+}
+
+interface AvaGap {
+  x: number;
+  y: number;
+  w: number;
 }
 
 interface ZombiePlatform {
@@ -245,6 +238,13 @@ interface ZombieEmber {
   a: number;
 }
 
+export interface ZombieRevivePrompt {
+  wave: number;
+  maxWaves: number;
+  kills: number;
+  cost: number;
+}
+
 export interface MiniSerializedState {
   mini: MinigameId;
   gs: 'playing' | 'roundEnd' | 'matchEnd';
@@ -254,47 +254,32 @@ export interface MiniSerializedState {
   cd: number | null;
   pl: Partial<MiniPlayer>[];
   pr: MiniProjectile[];
-  ball: MiniBall | null;
   coins: CoinItem[];
-  ro: number;
-  ob: RaceObstacle[];
-  rf: number;
-  beams?: LaserBeam[];
-  plats?: LavaPlat[];
-  lavaY?: number;
-  lavaCamY?: number;
   zombies?: ZombieEntity[];
-  saws?: SawBlade[];
-  pillars?: ArenaPillar[];
-  slashes?: SlashArc[];
   rings?: RingFx[];
-  ringScale?: number;
   wave?: number;
   zKills?: number;
   zPlats?: ZombiePlatform[];
   zBarrels?: ZombieBarrel[];
+  zr?: ZombieRevivePrompt | null;
+  meteors?: MeteorDrop[];
+  craters?: MeteorCrater[];
+  geysers?: MeteorGeyser[];
+  mPlats?: MeteorPlat[];
+  infLavaY?: number;
+  infSlags?: InfernoSlag[];
+  stormBolts?: StormBolt[];
+  stormWave?: StormWave | null;
+  stormFlash?: number;
+  avaY?: number;
+  avaGaps?: AvaGap[];
 }
 
 export interface MiniCallbacks {
   onHudUpdate: (values: (number | string)[], count: number, round: number, maxRounds: number) => void;
   onMatchEnd: (scores: number[], winnerIndices: number[]) => void;
+  onZombieRevivePrompt?: (info: ZombieRevivePrompt | null) => void;
   onSendNet?: () => void;
-}
-
-function pointSegDist(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len2 = dx * dx + dy * dy;
-  if (len2 === 0) return Math.hypot(px - x1, py - y1);
-  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2));
-  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
-}
-
-function angleDiff(a: number, b: number): number {
-  let d = a - b;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return Math.abs(d);
 }
 
 export class MinigameEngine {
@@ -321,17 +306,14 @@ export class MinigameEngine {
   private particles: MiniParticle[] = [];
   private popups: FloatingPopup[] = [];
   private projectiles: MiniProjectile[] = [];
-  private ball: MiniBall | null = null;
   private coins: CoinItem[] = [];
   private zombies: ZombieEntity[] = [];
-  private saws: SawBlade[] = [];
-  private pillars: ArenaPillar[] = [];
-  private slashes: SlashArc[] = [];
   private rings: RingFx[] = [];
-  private ringScale = 1;
   private zombieWave = 1;
-  private readonly zMaxWaves = 20;
+  private readonly zMaxWaves = 100;
   private zombieWon = false;
+  private zombieRevivePending = false;
+  private zombieRevivePrompt: ZombieRevivePrompt | null = null;
   private zombieKills = 0;
   private nextBossAt = 8;
   private waveBossSpawned = false;
@@ -345,17 +327,29 @@ export class MinigameEngine {
   private zBarrels: ZombieBarrel[] = [];
   private zBuildings: ZombieBuilding[] = [];
   private zEmbers: ZombieEmber[] = [];
-  private sawSpawnTimer = 0;
-  private raceOffset = 0;
-  private raceObstacles: RaceObstacle[] = [];
-  private raceFinishX = 0;
-  private beams: LaserBeam[] = [];
-  private laserSpawnTimer = 0;
-  private plats: LavaPlat[] = [];
-  private lavaY = 520;
-  private lavaCamY = 0;
-  private highestPlatY = 0;
-  private lavaTick = 0;
+  private meteors: MeteorDrop[] = [];
+  private meteorCraters: MeteorCrater[] = [];
+  private meteorGeysers: MeteorGeyser[] = [];
+  private mPlats: MeteorPlat[] = [];
+  private meteorSpawnTimer = 0;
+  private geyserSpawnTimer = 0;
+  private readonly infWorldH = 1480;
+  private infLavaY = 1485;
+  private infCamY = 1150;
+  private infSlags: InfernoSlag[] = [];
+  private infSlagTimer = 0;
+  private stormBolts: StormBolt[] = [];
+  private stormWave: StormWave | null = null;
+  private stormBoltTimer = 0;
+  private stormWaveTimer = 0;
+  private stormFlash = 0;
+  private stormRain: { x: number; y: number; len: number; sp: number }[] = [];
+  private readonly avaWorldH = 2600;
+  private avaY = -90;
+  private avaCamY = 270;
+  private avaGaps: AvaGap[] = [];
+  private avaSnow: { x: number; y: number; r: number; sp: number }[] = [];
+  private clouds: { x: number; y: number; r: number; sp: number }[] = [];
   private coinSpawnTimer = 0;
   private gameTimer = 0;
   private gameTimerMax = 0;
@@ -371,7 +365,6 @@ export class MinigameEngine {
   private hitStop = 0;
   private rigs: RagdollRig[] = [];
   private deadRagdolls: { rig: RagdollRig; floorY?: number }[] = [];
-  private sakuraPetals: { x: number; y: number; r: number; sp: number; drift: number }[] = [];
 
   start(
     canvas: HTMLCanvasElement,
@@ -398,13 +391,15 @@ export class MinigameEngine {
     this.netRole = netRole;
     this.callbacks = callbacks;
     this.paused = false;
+    this.zombieRevivePending = false;
+    this.zombieRevivePrompt = null;
+    this.callbacks?.onZombieRevivePrompt?.(null);
 
-    this.sakuraPetals = Array.from({ length: 34 }, () => ({
-      x: Math.random() * cssW,
-      y: Math.random() * cssH,
-      r: 2.2 + Math.random() * 2.5,
-      sp: 0.55 + Math.random() * 0.9,
-      drift: 0.4 + Math.random() * 0.8,
+    this.clouds = Array.from({ length: 14 }, (_, idx) => ({
+      x: (idx / 14) * cssW,
+      y: 65 + (idx % 5) * (cssH * 0.17),
+      r: 26 + (idx % 4) * 12,
+      sp: 0.18 + (idx % 3) * 0.12,
     }));
 
     PartyEconomy.beginMatch();
@@ -423,6 +418,8 @@ export class MinigameEngine {
 
   stop() {
     this.on = false;
+    this.zombieRevivePending = false;
+    this.zombieRevivePrompt = null;
     if (this.raf) cancelAnimationFrame(this.raf);
     this.raf = 0;
     if (this.roundTimerHandle) {
@@ -440,6 +437,12 @@ export class MinigameEngine {
         y: (p.y - this.zCamY) * this.zCamZoom + this.ch / 2,
       };
     }
+    if (this.currentMinigame === 'inferno') {
+      return { x: p.x, y: p.y - this.infCamY + this.ch / 2 };
+    }
+    if (this.currentMinigame === 'avalanche') {
+      return { x: p.x, y: p.y - this.avaCamY + this.ch / 2 };
+    }
     return { x: p.x, y: p.y };
   }
 
@@ -448,6 +451,9 @@ export class MinigameEngine {
       clearTimeout(this.roundTimerHandle);
       this.roundTimerHandle = null;
     }
+    this.zombieRevivePending = false;
+    this.zombieRevivePrompt = null;
+    this.callbacks?.onZombieRevivePrompt?.(null);
     PartyEconomy.beginMatch();
     this.currentRound = 1;
     this.players.forEach((p) => {
@@ -455,6 +461,76 @@ export class MinigameEngine {
       p.roundStart = 0;
     });
     this.startRound();
+  }
+
+  getZombieContinueCost(wave = this.zombieWave): number {
+    const w = Math.max(1, Math.floor(wave));
+    return Math.min(1000, 500 + (w - 1) * 10);
+  }
+
+  continueZombieAfterDeath() {
+    if (!this.on || this.currentMinigame !== 'zombie' || !this.zombieRevivePending || this.netRole === 'guest') {
+      return;
+    }
+    this.zombieRevivePending = false;
+    this.zombieRevivePrompt = null;
+    this.deadRagdolls = [];
+    resetInputs();
+
+    const gy = this.zGroundY;
+    this.players.forEach((p, idx) => {
+      const safeX = Math.max(84, Math.min(this.zWorldW - 84, Number.isFinite(p.x) ? p.x : this.zWorldW * 0.5 + idx * 44));
+      p.x = safeX;
+      p.y = gy - 22;
+      p.vx = 0;
+      p.vy = 0;
+      p.onGround = true;
+      p.jumpsLeft = 1;
+      p.hp = 100;
+      p.alive = true;
+      p.invincible = 165;
+      p.isAttacking = false;
+      p.attackTimer = 0;
+      this.rigs[p.index] = createRagdollRig(p.index, p.color, p.x, p.y, Math.cos(p.angle) >= 0 ? 1 : -1, 0.94);
+    });
+
+    // Push nearby zombies back to give revived players safe breathing room
+    for (const z of this.zombies) {
+      for (const p of this.players) {
+        const dx = z.x - p.x;
+        const dist = Math.abs(dx);
+        if (dist < 260) {
+          const dir = dx >= 0 ? 1 : -1;
+          z.x = Math.max(36, Math.min(this.zWorldW - 36, p.x + dir * 270));
+          z.vx = dir * 5.5;
+          z.vy = -4.2;
+        }
+      }
+    }
+
+    const focus = this.players[0];
+    if (focus) {
+      this.spawnRing(focus.x, focus.y, 130, '#4ade80', 26);
+      this.spawnParticle(focus.x, focus.y, '#4ade80', 28, 5.8, 30);
+      this.addPopup(focus.x, focus.y - 46, 'QALDIĞIN YERDƏN DAVAM!', '#4ade80');
+    }
+    PartyAudio.play('portal');
+    this.callbacks?.onZombieRevivePrompt?.(null);
+    this.emitHud();
+  }
+
+  declineZombieContinue() {
+    if (!this.on || this.currentMinigame !== 'zombie' || !this.zombieRevivePending || this.netRole === 'guest') {
+      return;
+    }
+    this.zombieRevivePending = false;
+    this.zombieRevivePrompt = null;
+    this.callbacks?.onZombieRevivePrompt?.(null);
+    const best = Math.max(...this.players.map((p) => p.coins), 0);
+    for (const p of this.players) {
+      if (p.coins === best) p.score++;
+    }
+    this.endRound();
   }
 
   setPaused(p: boolean) {
@@ -480,7 +556,8 @@ export class MinigameEngine {
         angle: p.angle,
         score: p.score,
         coins: p.coins,
-        raceX: p.raceX,
+        kingTicks: p.kingTicks,
+        snowCd: p.snowCd,
         isAttacking: p.isAttacking,
         invincible: p.invincible,
         zHop: p.zHop,
@@ -490,25 +567,25 @@ export class MinigameEngine {
         dashCooldown: p.dashCooldown,
       })),
       pr: this.projectiles,
-      ball: this.ball,
       coins: this.coins,
-      ro: this.raceOffset,
-      ob: this.raceObstacles,
-      rf: this.raceFinishX,
-      beams: this.beams,
-      plats: this.plats,
-      lavaY: this.lavaY,
-      lavaCamY: this.lavaCamY,
-      zombies: this.zombies,
-      saws: this.saws,
-      pillars: this.pillars,
-      slashes: this.slashes,
+      zombies: this.currentMinigame === 'zombie' ? this.zombies : undefined,
       rings: this.rings,
-      ringScale: this.ringScale,
       wave: this.zombieWave,
       zKills: this.zombieKills,
       zPlats: this.currentMinigame === 'zombie' ? this.zPlats : undefined,
       zBarrels: this.currentMinigame === 'zombie' ? this.zBarrels : undefined,
+      zr: this.zombieRevivePrompt,
+      meteors: this.currentMinigame === 'meteor' ? this.meteors : undefined,
+      craters: this.currentMinigame === 'meteor' ? this.meteorCraters : undefined,
+      geysers: this.currentMinigame === 'meteor' ? this.meteorGeysers : undefined,
+      mPlats: this.mPlats,
+      infLavaY: this.currentMinigame === 'inferno' ? this.infLavaY : undefined,
+      infSlags: this.currentMinigame === 'inferno' ? this.infSlags : undefined,
+      stormBolts: this.currentMinigame === 'storm' ? this.stormBolts : undefined,
+      stormWave: this.currentMinigame === 'storm' ? this.stormWave : undefined,
+      stormFlash: this.currentMinigame === 'storm' ? this.stormFlash : undefined,
+      avaY: this.currentMinigame === 'avalanche' ? this.avaY : undefined,
+      avaGaps: this.currentMinigame === 'avalanche' ? this.avaGaps : undefined,
     };
   }
 
@@ -528,6 +605,12 @@ export class MinigameEngine {
       if (d.mini === 'zombie' && this.zBuildings.length === 0) {
         this.initZombieAtmosphere();
       }
+      if (d.mini === 'storm' && this.stormRain.length === 0) {
+        this.initStormRain();
+      }
+      if (d.mini === 'avalanche' && this.avaSnow.length === 0) {
+        this.initAvaSnow();
+      }
     } else {
       for (let i = 0; i < this.players.length; i++) {
         const p = this.players[i];
@@ -538,25 +621,27 @@ export class MinigameEngine {
       }
     }
     this.projectiles = d.pr;
-    this.ball = d.ball;
     this.coins = d.coins;
-    this.raceOffset = d.ro;
-    this.raceObstacles = d.ob;
-    this.raceFinishX = d.rf;
-    if (d.beams) this.beams = d.beams;
-    if (d.plats) this.plats = d.plats;
-    if (typeof d.lavaY === 'number') this.lavaY = d.lavaY;
-    if (typeof d.lavaCamY === 'number') this.lavaCamY = d.lavaCamY;
     if (d.zombies) this.zombies = d.zombies;
-    if (d.saws) this.saws = d.saws;
-    if (d.pillars) this.pillars = d.pillars;
-    if (d.slashes) this.slashes = d.slashes;
     if (d.rings) this.rings = d.rings;
-    if (typeof d.ringScale === 'number') this.ringScale = d.ringScale;
     if (typeof d.wave === 'number') this.zombieWave = d.wave;
     if (typeof d.zKills === 'number') this.zombieKills = d.zKills;
     if (d.zPlats) this.zPlats = d.zPlats;
     if (d.zBarrels) this.zBarrels = d.zBarrels;
+    if (d.meteors) this.meteors = d.meteors;
+    if (d.craters) this.meteorCraters = d.craters;
+    if (d.geysers) this.meteorGeysers = d.geysers;
+    if (d.mPlats) this.mPlats = d.mPlats;
+    if (typeof d.infLavaY === 'number') this.infLavaY = d.infLavaY;
+    if (d.infSlags) this.infSlags = d.infSlags;
+    if (d.stormBolts) this.stormBolts = d.stormBolts;
+    if (d.stormWave !== undefined) this.stormWave = d.stormWave;
+    if (typeof d.stormFlash === 'number') this.stormFlash = d.stormFlash;
+    if (typeof d.avaY === 'number') this.avaY = d.avaY;
+    if (d.avaGaps) this.avaGaps = d.avaGaps;
+    this.zombieRevivePrompt = d.zr ?? null;
+    this.zombieRevivePending = !!d.zr;
+    this.callbacks?.onZombieRevivePrompt?.(this.zombieRevivePrompt);
     this.gameTimer = d.gt;
     this.gameTimerMax = d.gtm;
     this.currentRound = d.cr;
@@ -644,28 +729,51 @@ export class MinigameEngine {
     }
   }
 
+  private initStormRain() {
+    this.stormRain = Array.from({ length: 76 }, () => ({
+      x: Math.random() * this.cw,
+      y: Math.random() * this.ch,
+      len: 14 + Math.random() * 14,
+      sp: 11 + Math.random() * 6,
+    }));
+  }
+
+  private initAvaSnow() {
+    this.avaSnow = Array.from({ length: 82 }, () => ({
+      x: Math.random() * this.cw,
+      y: Math.random() * this.ch,
+      r: 1.5 + Math.random() * 2.6,
+      sp: 1.8 + Math.random() * 2.8,
+    }));
+  }
+
   private initMinigame() {
     this.projectiles = [];
     this.particles = [];
     this.popups = [];
     this.coins = [];
     this.zombies = [];
-    this.saws = [];
-    this.pillars = [];
-    this.slashes = [];
+    this.zBarrels = [];
     this.rings = [];
-    this.raceObstacles = [];
-    this.beams = [];
-    this.plats = [];
-    this.ball = null;
+    this.meteors = [];
+    this.meteorCraters = [];
+    this.meteorGeysers = [];
+    this.mPlats = [];
+    this.infSlags = [];
+    this.stormBolts = [];
+    this.stormWave = null;
+    this.stormFlash = 0;
+    this.avaGaps = [];
+    this.avaY = -90;
+    this.avaCamY = this.ch * 0.5;
     this.coinSpawnTimer = 0;
-    this.laserSpawnTimer = 40;
+    this.meteorSpawnTimer = 32;
+    this.geyserSpawnTimer = 95;
+    this.infSlagTimer = 85;
+    this.stormBoltTimer = 46;
+    this.stormWaveTimer = 175;
     this.zombieSpawnTimer = 25;
-    this.sawSpawnTimer = 0;
     this.zombieWave = 1;
-    this.ringScale = 1;
-    this.raceOffset = 0;
-    this.lavaTick = 0;
 
     const cw = this.cw;
     const ch = this.ch;
@@ -677,6 +785,8 @@ export class MinigameEngine {
         this.zombieKills = 0;
         this.zombieWave = 1;
         this.zombieWon = false;
+        this.zombieRevivePending = false;
+        this.zombieRevivePrompt = null;
         this.nextBossAt = 8;
         this.waveBossSpawned = false;
         this.zombieSpawnTimer = 30;
@@ -737,226 +847,218 @@ export class MinigameEngine {
         }
         break;
       }
-      case 'samurai': {
+      case 'meteor': {
         this.gameTimer = 45 * 60;
         this.gameTimerMax = this.gameTimer;
-        this.pillars = [
-          { x: cw * 0.30 - 18, y: ch * 0.34 - 18, w: 36, h: 36 },
-          { x: cw * 0.70 - 18, y: ch * 0.34 - 18, w: 36, h: 36 },
-          { x: cw * 0.30 - 18, y: ch * 0.70 - 18, w: 36, h: 36 },
-          { x: cw * 0.70 - 18, y: ch * 0.70 - 18, w: 36, h: 36 },
+        this.meteorSpawnTimer = 30;
+        this.geyserSpawnTimer = 95;
+        const deckY = ch - 56;
+        this.mPlats = [
+          { x: cw * 0.14, y: deckY - 104, w: Math.max(120, cw * 0.17), h: 14, kind: 'bridge' },
+          { x: cw * 0.5 - Math.max(70, cw * 0.095), y: deckY - 178, w: Math.max(140, cw * 0.19), h: 14, kind: 'steel' },
+          { x: cw * 0.86 - Math.max(120, cw * 0.17), y: deckY - 104, w: Math.max(120, cw * 0.17), h: 14, kind: 'bridge' },
+          { x: 42, y: deckY - 13, w: 54, h: 13, spring: true },
+          { x: cw - 96, y: deckY - 13, w: 54, h: 13, spring: true },
         ];
-        const sSpawns: [number, number][] = [
-          [cw * 0.16, ch * 0.28],
-          [cw * 0.84, ch * 0.74],
-          [cw * 0.84, ch * 0.28],
-          [cw * 0.16, ch * 0.74],
-        ];
+        this.zEmbers = Array.from({ length: 40 }, () => ({
+          x: Math.random() * cw,
+          y: Math.random() * ch,
+          vx: -0.25 + Math.random() * 0.5,
+          vy: -0.5 - Math.random() * 0.8,
+          r: 1.4 + Math.random() * 2.2,
+          a: 0.35 + Math.random() * 0.5,
+        }));
         this.players.forEach((p, idx) => {
-          const [sx, sy] = sSpawns[idx % sSpawns.length];
-          p.x = sx;
-          p.y = sy;
-          p.angle = Math.atan2(ch * 0.52 - sy, cw * 0.5 - sx);
           p.hp = 100;
-        });
-        break;
-      }
-      case 'sniper': {
-        this.gameTimer = 45 * 60;
-        this.gameTimerMax = this.gameTimer;
-        this.pillars = [
-          { x: cw * 0.5 - 22, y: ch * 0.5 - 32, w: 44, h: 64 },
-          { x: cw * 0.26 - 20, y: ch * 0.36 - 22, w: 40, h: 44 },
-          { x: cw * 0.74 - 20, y: ch * 0.66 - 22, w: 40, h: 44 },
-          { x: cw * 0.26 - 20, y: ch * 0.68 - 20, w: 40, h: 40 },
-          { x: cw * 0.74 - 20, y: ch * 0.34 - 20, w: 40, h: 40 },
-        ];
-        const sniperSpawns: [number, number, number][] = [
-          [cw * 0.11, ch * 0.25, 0.3],
-          [cw * 0.89, ch * 0.78, Math.PI + 0.3],
-          [cw * 0.89, ch * 0.25, Math.PI - 0.3],
-          [cw * 0.11, ch * 0.78, -0.3],
-        ];
-        this.players.forEach((p, i) => {
-          const [sx, sy, sa] = sniperSpawns[i % sniperSpawns.length];
-          p.x = sx;
-          p.y = sy;
-          p.angle = sa;
-          p.hp = 100;
-          p.throwCd = 20;
-        });
-        break;
-      }
-      case 'blades': {
-        this.gameTimer = 45 * 60;
-        this.gameTimerMax = this.gameTimer;
-        this.pillars = [
-          { x: cw * 0.32 - 20, y: ch * 0.52 - 22, w: 40, h: 44 },
-          { x: cw * 0.68 - 20, y: ch * 0.52 - 22, w: 40, h: 44 },
-        ];
-        this.players.forEach((p) => { p.hp = 100; p.shield = false; });
-        const speeds: [number, number][] = [[4.6, 3.5], [-4.4, 3.8]];
-        for (let k = 0; k < 2; k++) {
-          const [vx, vy] = speeds[k];
-          this.saws.push({
-            x: k === 0 ? cw * 0.18 : cw * 0.82,
-            y: k === 0 ? 95 : ch - 75,
-            vx,
-            vy,
-            r: 22,
-            rot: 0,
-          });
-        }
-        break;
-      }
-      case 'sumo':
-        this.ringScale = 1;
-        this.gameTimer = 0;
-        this.players.forEach((p) => { p.hp = 999; p.shield = false; });
-        break;
-      case 'futbol':
-        this.ball = { x: cw / 2, y: (ch + 44) / 2, vx: 0, vy: 0, radius: 13, lastKicker: -1, holder: -1, fuse: 0, noPick: 0 };
-        this.gameTimer = 0;
-        if (this.playerCount >= 2) {
-          this.players[0].x = cw * 0.22; this.players[0].y = (ch + 44) / 2;
-          this.players[1].x = cw * 0.78; this.players[1].y = (ch + 44) / 2;
-        }
-        if (this.playerCount >= 3) {
-          this.players[2].x = cw * 0.28; this.players[2].y = ch * 0.34;
-        }
-        if (this.playerCount >= 4) {
-          this.players[3].x = cw * 0.72; this.players[3].y = ch * 0.34;
-        }
-        break;
-      case 'race': {
-        this.raceFinishX = Math.max(7600, cw * 6.35);
-        this.raceOffset = 0;
-        const deckY = ch - 78;
-        // Starting concrete landing bay
-        this.raceObstacles.push({ x: 0, y: deckY, w: 340, h: 110, kind: 'floor' });
-
-        let cx = 340;
-        let segIdx = 0;
-        while (cx < this.raceFinishX - 420) {
-          const pattern = segIdx % 6;
-          if (pattern === 0) {
-            // Saw chasm with twin spinning buzzsaws + mid-air concrete platform bridge
-            const gapW = 240;
-            this.raceObstacles.push({ x: cx + 62, y: deckY + 2, w: 48, h: 48, kind: 'saw', r: 24, baseY: deckY + 2, dy: 0, speed: 0 });
-            this.raceObstacles.push({ x: cx + 148, y: deckY - 12, w: 50, h: 50, kind: 'saw', r: 25, baseY: deckY - 12, dy: 28, speed: 0.065 });
-            this.raceObstacles.push({ x: cx + 66, y: deckY - 94, w: 108, h: 18, kind: 'platform' });
-            cx += gapW;
-            const landW = 220;
-            this.raceObstacles.push({ x: cx, y: deckY, w: landW, h: 110, kind: 'floor' });
-            cx += landW;
-          } else if (pattern === 1) {
-            // Elevated stair ledges + spring launcher over hazard saw bay
-            this.raceObstacles.push({ x: cx + 12, y: deckY - 72, w: 120, h: 18, kind: 'platform' });
-            this.raceObstacles.push({ x: cx + 168, y: deckY - 124, w: 125, h: 18, kind: 'platform' });
-            this.raceObstacles.push({ x: cx + 92, y: deckY + 6, w: 52, h: 52, kind: 'saw', r: 26, baseY: deckY + 6, dy: 0, speed: 0 });
-            this.raceObstacles.push({ x: cx + 215, y: deckY + 6, w: 52, h: 52, kind: 'saw', r: 26, baseY: deckY + 6, dy: 0, speed: 0 });
-            cx += 320;
-            const landW = 240;
-            this.raceObstacles.push({ x: cx, y: deckY - 16, w: landW, h: 126, kind: 'floor' });
-            this.raceObstacles.push({ x: cx + landW - 64, y: deckY - 30, w: 46, h: 14, kind: 'spring' });
-            cx += landW;
-          } else if (pattern === 2) {
-            // Twin high-speed concrete ledges with bobbing vertical buzzsaw between them
-            this.raceObstacles.push({ x: cx + 40, y: deckY - 102, w: 118, h: 18, kind: 'platform' });
-            this.raceObstacles.push({ x: cx + 168, y: deckY - 54, w: 46, h: 46, kind: 'saw', r: 23, baseY: deckY - 64, dy: 44, speed: 0.08 });
-            this.raceObstacles.push({ x: cx + 224, y: deckY - 82, w: 118, h: 18, kind: 'platform' });
-            cx += 365;
-            const landW = 235;
-            this.raceObstacles.push({ x: cx, y: deckY, w: landW, h: 110, kind: 'floor' });
-            this.raceObstacles.push({ x: cx + 96, y: deckY - 46, w: 44, h: 46, kind: 'crate' });
-            cx += landW;
-          } else if (pattern === 3) {
-            // Double chasm hop with low concrete block + moving saw guard
-            const gapA = 148;
-            this.raceObstacles.push({ x: cx + 52, y: deckY + 10, w: 48, h: 48, kind: 'saw', r: 24, baseY: deckY + 10, dy: 0, speed: 0 });
-            cx += gapA;
-            this.raceObstacles.push({ x: cx, y: deckY - 26, w: 138, h: 136, kind: 'floor' });
-            this.raceObstacles.push({ x: cx + 195, y: deckY - 72, w: 46, h: 46, kind: 'saw', r: 23, baseY: deckY - 72, dy: 38, speed: 0.075 });
-            cx += 138 + 155;
-            const landW = 220;
-            this.raceObstacles.push({ x: cx, y: deckY, w: landW, h: 110, kind: 'floor' });
-            cx += landW;
-          } else if (pattern === 4) {
-            // Triple concrete stepping pillars over spinning factory saw pit + upper deck
-            this.raceObstacles.push({ x: cx + 18, y: deckY - 62, w: 105, h: 18, kind: 'platform' });
-            this.raceObstacles.push({ x: cx + 155, y: deckY - 110, w: 110, h: 18, kind: 'platform' });
-            this.raceObstacles.push({ x: cx + 298, y: deckY - 68, w: 105, h: 18, kind: 'platform' });
-            this.raceObstacles.push({ x: cx + 82, y: deckY + 8, w: 50, h: 50, kind: 'saw', r: 25, baseY: deckY + 8, dy: 0, speed: 0 });
-            this.raceObstacles.push({ x: cx + 225, y: deckY + 4, w: 52, h: 52, kind: 'saw', r: 26, baseY: deckY + 4, dy: 24, speed: 0.07 });
-            cx += 425;
-            const landW = 220;
-            this.raceObstacles.push({ x: cx, y: deckY, w: landW, h: 110, kind: 'floor' });
-            this.raceObstacles.push({ x: cx + 86, y: deckY - 46, w: 44, h: 46, kind: 'crate' });
-            cx += landW;
-          } else {
-            // Spring vault runway over twin oscillating buzzsaws
-            this.raceObstacles.push({ x: cx, y: deckY, w: 140, h: 110, kind: 'floor' });
-            this.raceObstacles.push({ x: cx + 82, y: deckY - 14, w: 46, h: 14, kind: 'spring' });
-            cx += 140;
-            this.raceObstacles.push({ x: cx + 48, y: deckY - 22, w: 50, h: 50, kind: 'saw', r: 25, baseY: deckY - 22, dy: 34, speed: 0.068 });
-            this.raceObstacles.push({ x: cx + 148, y: deckY - 42, w: 50, h: 50, kind: 'saw', r: 25, baseY: deckY - 42, dy: 34, speed: -0.072 });
-            this.raceObstacles.push({ x: cx + 68, y: deckY - 118, w: 120, h: 18, kind: 'platform' });
-            cx += 235;
-            const landW = 230;
-            this.raceObstacles.push({ x: cx, y: deckY, w: landW, h: 110, kind: 'floor' });
-            cx += landW;
-          }
-          segIdx++;
-        }
-
-        // Final concrete runway & Finish Gate
-        this.raceObstacles.push({ x: cx, y: deckY, w: this.raceFinishX - cx + 280, h: 110, kind: 'floor' });
-
-        this.players.forEach((p, idx) => {
-          p.hp = 999;
-          p.raceX = 76 + idx * 18;
-          p.x = p.raceX;
+          p.shield = false;
+          p.x = cw * (0.24 + (idx / Math.max(1, this.playerCount - 1)) * 0.52);
           p.y = deckY - 22;
           p.vx = 0;
           p.vy = 0;
           p.onGround = true;
-          p.jumpsLeft = 0;
-          p.dashCooldown = 0;
-          p.invincible = 0;
+          p.angle = idx % 2 === 0 ? 0 : Math.PI;
         });
         break;
       }
-      case 'bomb':
-        this.pillars = [
-          { x: cw * 0.24 - 20, y: ch * 0.34 - 20, w: 40, h: 40 },
-          { x: cw * 0.76 - 20, y: ch * 0.34 - 20, w: 40, h: 40 },
-          { x: cw * 0.24 - 20, y: ch * 0.68 - 20, w: 40, h: 40 },
-          { x: cw * 0.76 - 20, y: ch * 0.68 - 20, w: 40, h: 40 },
+      case 'inferno': {
+        this.gameTimer = 0;
+        this.gameTimerMax = 0;
+        const fh = this.infWorldH;
+        this.infLavaY = fh + 10;
+        this.infCamY = fh - ch * 0.48;
+        this.mPlats = [
+          // Main factory forge base floor
+          { x: 24, y: fh - 85, w: cw - 48, h: 24, kind: 'steel' },
+          // Tier 1
+          { x: cw * 0.08, y: fh - 190, w: cw * 0.28, h: 16, kind: 'bridge' },
+          { x: cw * 0.64, y: fh - 190, w: cw * 0.28, h: 16, kind: 'bridge' },
+          { x: cw * 0.44, y: fh - 100, w: 68, h: 14, spring: true },
+          // Tier 2
+          { x: cw * 0.33, y: fh - 305, w: cw * 0.34, h: 16, kind: 'steel' },
+          { x: cw * 0.12, y: fh - 204, w: 58, h: 14, spring: true },
+          { x: cw * 0.88 - 58, y: fh - 204, w: 58, h: 14, spring: true },
+          // Tier 3
+          { x: cw * 0.07, y: fh - 425, w: cw * 0.27, h: 16, kind: 'bridge' },
+          { x: cw * 0.66, y: fh - 425, w: cw * 0.27, h: 16, kind: 'bridge' },
+          // Tier 4
+          { x: cw * 0.31, y: fh - 545, w: cw * 0.38, h: 16, kind: 'steel' },
+          { x: cw * 0.48, y: fh - 440, w: 64, h: 14, spring: true },
+          // Tier 5
+          { x: cw * 0.08, y: fh - 670, w: cw * 0.26, h: 16, kind: 'bridge' },
+          { x: cw * 0.66, y: fh - 670, w: cw * 0.26, h: 16, kind: 'bridge' },
+          { x: cw * 0.14, y: fh - 684, w: 58, h: 14, spring: true },
+          { x: cw * 0.86 - 58, y: fh - 684, w: 58, h: 14, spring: true },
+          // Tier 6
+          { x: cw * 0.34, y: fh - 800, w: cw * 0.32, h: 16, kind: 'steel' },
+          // Tier 7
+          { x: cw * 0.09, y: fh - 920, w: cw * 0.27, h: 16, kind: 'bridge' },
+          { x: cw * 0.64, y: fh - 920, w: cw * 0.27, h: 16, kind: 'bridge' },
+          // Tier 8
+          { x: cw * 0.32, y: fh - 1045, w: cw * 0.36, h: 16, kind: 'steel' },
+          { x: cw * 0.46, y: fh - 934, w: 66, h: 14, spring: true },
+          // Tier 9
+          { x: cw * 0.10, y: fh - 1170, w: cw * 0.25, h: 16, kind: 'bridge' },
+          { x: cw * 0.65, y: fh - 1170, w: cw * 0.25, h: 16, kind: 'bridge' },
+          // Summit Escape Beacon Platform
+          { x: cw * 0.5 - 125, y: 185, w: 250, h: 20, kind: 'summit' },
         ];
-        this.players.forEach((p) => { p.hp = 100; p.throwCd = 0; });
-        this.ball = { x: cw / 2, y: ch / 2, vx: 0, vy: 0, radius: 13, lastKicker: -1, holder: -1, fuse: 6 * 60, maxFuse: 6 * 60, noPick: 0 };
+        this.zEmbers = Array.from({ length: 48 }, () => ({
+          x: 30 + Math.random() * (cw - 60),
+          y: 120 + Math.random() * (fh - 180),
+          vx: -0.3 + Math.random() * 0.6,
+          vy: -0.6 - Math.random() * 1.1,
+          r: 1.5 + Math.random() * 2.5,
+          a: 0.4 + Math.random() * 0.5,
+        }));
+        this.players.forEach((p, idx) => {
+          p.hp = 100;
+          p.shield = false;
+          p.x = cw * (0.28 + (idx / Math.max(1, this.playerCount - 1)) * 0.44);
+          p.y = fh - 107;
+          p.vx = 0;
+          p.vy = 0;
+          p.onGround = true;
+          p.angle = idx % 2 === 0 ? 0 : Math.PI;
+        });
         break;
-      case 'laser':
+      }
+      case 'storm': {
         this.gameTimer = 45 * 60;
         this.gameTimerMax = this.gameTimer;
-        this.laserSpawnTimer = 35;
-        this.players.forEach((p) => { p.hp = 100; p.shield = false; });
-        break;
-      case 'lava': {
-        this.lavaY = ch + 24;
-        this.lavaCamY = 0;
-        this.lavaTick = 0;
-        this.plats = [
-          { x: cw * 0.14, y: ch - 46, w: cw * 0.72, dx: 0, minX: 0, maxX: cw, kind: 'stone' },
+        this.initStormRain();
+        const shipL = cw * 0.10;
+        const shipW = cw * 0.80;
+        const deckY = ch - 94;
+        this.mPlats = [
+          // Main steel ship hull deck (open ocean outside [shipL, shipL + shipW]!)
+          { x: shipL, y: deckY, w: shipW, h: 24, kind: 'steel' },
+          // Captain's Bridge upper catwalk (left)
+          { x: shipL + 18, y: deckY - 122, w: Math.max(115, cw * 0.15), h: 16, kind: 'bridge' },
+          // Stacked red & blue shipping containers
+          { x: cw * 0.36, y: deckY - 62, w: Math.max(104, cw * 0.125), h: 62, kind: 'container', color: '#1e3a5f' },
+          { x: cw * 0.56, y: deckY - 76, w: Math.max(122, cw * 0.15), h: 76, kind: 'container', color: '#7f1d1d' },
+          // High Crane Boom Catwalk
+          { x: cw * 0.41, y: deckY - 178, w: Math.max(145, cw * 0.21), h: 14, kind: 'bridge' },
+          // Left & Right Edge Lifeboat Rescue Spring Pads
+          { x: shipL + 14, y: deckY - 13, w: 50, h: 13, spring: true },
+          { x: shipL + shipW - 64, y: deckY - 13, w: 50, h: 13, spring: true },
         ];
-        this.highestPlatY = ch - 46;
-        this.generateLavaPlats(ch - 900);
         this.players.forEach((p, idx) => {
-          p.hp = 999;
+          p.hp = 100;
+          p.shield = false;
           p.x = cw * (0.28 + (idx / Math.max(1, this.playerCount - 1)) * 0.44);
-          p.y = ch - 70;
+          p.y = deckY - 22;
+          p.vx = 0;
+          p.vy = 0;
           p.onGround = true;
-          p.jumpsLeft = 1;
+          p.angle = idx % 2 === 0 ? 0 : Math.PI;
+        });
+        break;
+      }
+      case 'avalanche': {
+        this.gameTimer = 0;
+        this.gameTimerMax = 0;
+        this.avaY = -95;
+        this.avaCamY = ch * 0.5;
+        this.initAvaSnow();
+
+        const leftX = 28;
+        const rightX = cw - 28;
+        const spanW = rightX - leftX;
+        const gapW = Math.max(82, Math.min(112, Math.round(spanW * 0.115)));
+        const floorCount = 20;
+        const startY = 148;
+        const tierStep = 112;
+
+        let prevGaps: number[] = [];
+        for (let tier = 0; tier < floorCount; tier++) {
+          const fy = startY + tier * tierStep;
+          const numGaps = tier % 3 === 1 && spanW > 520 ? 2 : 1;
+          const gapsOnTier: number[] = [];
+
+          for (let gIdx = 0; gIdx < numGaps; gIdx++) {
+            let bestGx = leftX + 48 + Math.random() * Math.max(40, spanW - gapW - 96);
+            for (let attempt = 0; attempt < 18; attempt++) {
+              const cand =
+                numGaps === 2
+                  ? gIdx === 0
+                    ? leftX + 36 + Math.random() * Math.max(30, spanW * 0.42 - gapW - 36)
+                    : leftX + spanW * 0.54 + Math.random() * Math.max(30, spanW * 0.46 - gapW - 36)
+                  : leftX + 42 + Math.random() * Math.max(40, spanW - gapW - 84);
+              const farFromPrev = prevGaps.every((pg) => Math.abs(cand + gapW * 0.5 - (pg + gapW * 0.5)) > 110);
+              const farFromSame = gapsOnTier.every((sg) => Math.abs(cand - sg) > gapW + 85);
+              if (farFromPrev && farFromSame) {
+                bestGx = cand;
+                break;
+              }
+            }
+            gapsOnTier.push(bestGx);
+          }
+
+          gapsOnTier.sort((a, b) => a - b);
+          prevGaps = gapsOnTier;
+
+          let curX = leftX;
+          for (const gx of gapsOnTier) {
+            const segW = gx - curX;
+            if (segW > 22) {
+              this.mPlats.push({ x: curX, y: fy, w: segW, h: 16, kind: 'snow' });
+            }
+            this.avaGaps.push({ x: gx, y: fy, w: gapW });
+            curX = gx + gapW;
+          }
+          const tailW = rightX - curX;
+          if (tailW > 22) {
+            this.mPlats.push({ x: curX, y: fy, w: tailW, h: 16, kind: 'snow' });
+          }
+        }
+
+        // Solid Alpine Rescue Camp finish floor at the bottom of the canyon
+        this.mPlats.push({
+          x: leftX,
+          y: this.avaWorldH - 140,
+          w: spanW,
+          h: 24,
+          kind: 'summit',
+        });
+
+        // Pick solid starting spots on floor 0 away from the first gap
+        const topSegs = this.mPlats.filter((mp) => mp.y === startY && mp.w >= 48);
+        this.players.forEach((p, idx) => {
+          p.hp = 100;
+          p.shield = false;
+          const seg = topSegs[idx % Math.max(1, topSegs.length)];
+          if (seg) {
+            const frac = topSegs.length === 1 ? (idx + 1) / (this.playerCount + 1) : 0.35 + (idx % 2) * 0.3;
+            p.x = Math.max(seg.x + 22, Math.min(seg.x + seg.w - 22, seg.x + seg.w * frac));
+          } else {
+            p.x = cw * (0.28 + (idx / Math.max(1, this.playerCount - 1)) * 0.44);
+          }
+          p.y = startY - 22;
+          p.vx = 0;
+          p.vy = 0;
+          p.onGround = true;
+          p.angle = idx % 2 === 0 ? 0 : Math.PI;
         });
         break;
       }
@@ -972,6 +1074,9 @@ export class MinigameEngine {
 
   private startRound() {
     resetInputs();
+    this.zombieRevivePending = false;
+    this.zombieRevivePrompt = null;
+    this.callbacks?.onZombieRevivePrompt?.(null);
     this.gameState = 'playing';
     this.roundEndTicks = 0;
     this.countdownActive = this.currentMinigame !== 'zombie';
@@ -1029,14 +1134,17 @@ export class MinigameEngine {
   }
 
   private getSidePlatforms(): [number, number, number, number][] {
-    if (this.currentMinigame === 'lava') {
-      return this.plats.map((pl) => [pl.x, pl.y, pl.w, 13] as [number, number, number, number]);
+    if (this.currentMinigame === 'meteor') {
+      const list: [number, number, number, number][] = [[0, this.ch - 56, this.cw, 70]];
+      for (const mp of this.mPlats) {
+        if (!mp.spring) list.push([mp.x, mp.y, mp.w, mp.h]);
+      }
+      return list;
     }
-    if (this.currentMinigame === 'race') {
+    if (this.currentMinigame === 'inferno' || this.currentMinigame === 'storm' || this.currentMinigame === 'avalanche') {
       const list: [number, number, number, number][] = [];
-      for (const obs of this.raceObstacles) {
-        if (obs.kind === 'saw' || obs.kind === 'spring' || obs.kind === 'boost') continue;
-        list.push([obs.x - this.raceOffset, obs.y, obs.w, obs.h]);
+      for (const mp of this.mPlats) {
+        if (!mp.spring) list.push([mp.x, mp.y, mp.w, mp.h]);
       }
       return list;
     }
@@ -1052,13 +1160,9 @@ export class MinigameEngine {
 
   private spawnMiniDeadRagdoll(p: MiniPlayer, rig: RagdollRig) {
     const deadRig = convertRigToDead(rig, p.vx * 1.15, p.vy - 3.6, 190);
-    const hasAbyss =
-      this.currentMinigame === 'sumo' ||
-      this.currentMinigame === 'lava' ||
-      this.currentMinigame === 'zombie';
     this.deadRagdolls.push({
       rig: deadRig,
-      floorY: hasAbyss ? undefined : Math.min(this.ch - 10, p.y + 24),
+      floorY: undefined,
     });
   }
 
@@ -1072,24 +1176,13 @@ export class MinigameEngine {
     rig.color = p.color;
     rig.dir = dir;
 
-    const sideView =
-      this.currentMinigame === 'race' ||
-      this.currentMinigame === 'lava' ||
-      this.currentMinigame === 'zombie';
-    const hopY = 0;
-    const holdingBomb = this.currentMinigame === 'bomb' && this.ball?.holder === p.index;
-    const hasWeapon = this.currentMinigame === 'zombie' || this.currentMinigame === 'samurai' || this.currentMinigame === 'sniper';
-
+    const hasWeapon = this.currentMinigame === 'zombie';
     let handTarget1: [number, number] | undefined;
     let handTarget2: [number, number] | undefined;
     let twoHanded = false;
-    if (holdingBomb) {
-      handTarget1 = [rig.chest.x + 6 * dir, p.y - hopY - 24];
-      handTarget2 = [rig.chest.x - 6 * dir, p.y - hopY - 24];
-      twoHanded = true;
-    } else if (hasWeapon || p.isAttacking) {
+    if (hasWeapon || p.isAttacking) {
       handTarget1 = [rig.chest.x + Math.cos(p.angle) * 16, rig.chest.y + Math.sin(p.angle) * 16];
-      if (this.currentMinigame === 'sniper' || (this.currentMinigame === 'zombie' && p.weap !== 'blaster')) {
+      if (this.currentMinigame === 'zombie' && p.weap !== 'blaster') {
         twoHanded = true;
         handTarget2 = [rig.chest.x + Math.cos(p.angle) * 23, rig.chest.y + Math.sin(p.angle) * 23];
       }
@@ -1097,12 +1190,12 @@ export class MinigameEngine {
 
     stepActiveRagdoll(rig, {
       x: p.x,
-      y: p.y - hopY,
+      y: p.y,
       vx: p.vx,
-      vy: sideView ? p.vy : 0,
+      vy: p.vy,
       dir,
       aim: p.angle,
-      ground: sideView ? p.onGround : hopY <= 1,
+      ground: p.onGround,
       phase: p.phase,
       sq: p.sq,
       recoil: p.isAttacking ? 0.35 : 0,
@@ -1112,8 +1205,8 @@ export class MinigameEngine {
       twoHanded,
       handTarget1,
       handTarget2,
-      platforms: sideView ? this.getSidePlatforms() : undefined,
-      gravity: sideView ? 0.44 : 0.14,
+      platforms: this.getSidePlatforms(),
+      gravity: 0.44,
       time: this.miniTick,
     });
   }
@@ -1125,39 +1218,10 @@ export class MinigameEngine {
     if (rig) {
       this.spawnMiniDeadRagdoll(p, rig);
     }
-    if (this.currentMinigame !== 'race') {
-      this.hitStop = Math.max(this.hitStop, 3);
-    }
+    this.hitStop = Math.max(this.hitStop, 3);
     this.spawnParticle(p.x, p.y, p.color, 26, 5.8, 42);
     this.spawnRing(p.x, p.y, 48, p.color, 20);
     this.triggerShake(7, 14);
-  }
-
-  private resolvePillarCollisions(entity: { x: number; y: number; radius: number; vx?: number; vy?: number }) {
-    for (const pil of this.pillars) {
-      const nearX = Math.max(pil.x, Math.min(pil.x + pil.w, entity.x));
-      const nearY = Math.max(pil.y, Math.min(pil.y + pil.h, entity.y));
-      const dx = entity.x - nearX;
-      const dy = entity.y - nearY;
-      const dist = Math.hypot(dx, dy);
-      if (dist < entity.radius) {
-        if (dist > 0.001) {
-          const push = entity.radius - dist;
-          entity.x += (dx / dist) * push;
-          entity.y += (dy / dist) * push;
-        } else {
-          const left = entity.x - pil.x;
-          const right = pil.x + pil.w - entity.x;
-          const top = entity.y - pil.y;
-          const bot = pil.y + pil.h - entity.y;
-          const minD = Math.min(left, right, top, bot);
-          if (minD === left) entity.x = pil.x - entity.radius;
-          else if (minD === right) entity.x = pil.x + pil.w + entity.radius;
-          else if (minD === top) entity.y = pil.y - entity.radius;
-          else entity.y = pil.y + pil.h + entity.radius;
-        }
-      }
-    }
   }
 
   private step() {
@@ -1182,10 +1246,9 @@ export class MinigameEngine {
       this.shakeY = 0;
     }
 
-    for (const sk of this.sakuraPetals) {
-      sk.y += sk.sp;
-      sk.x += Math.sin(sk.y * 0.025 + sk.r) * sk.drift;
-      if (sk.y > this.ch) { sk.y = -6; sk.x = Math.random() * this.cw; }
+    for (const cl of this.clouds) {
+      cl.x += cl.sp;
+      if (cl.x - cl.r > this.cw + 40) cl.x = -cl.r - 40;
     }
 
     for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -1200,37 +1263,60 @@ export class MinigameEngine {
       pp.y += pp.vy;
       if (--pp.life <= 0) this.popups.splice(i, 1);
     }
-    for (let i = this.slashes.length - 1; i >= 0; i--) {
-      if (--this.slashes[i].life <= 0) this.slashes.splice(i, 1);
-    }
     for (let i = this.rings.length - 1; i >= 0; i--) {
       const r = this.rings[i];
       r.r += (r.maxR - r.r) * 0.24;
       if (--r.life <= 0) this.rings.splice(i, 1);
     }
+    for (const r of this.stormRain) {
+      r.x -= 2.4;
+      r.y += r.sp;
+      if (r.y > this.ch + 20) {
+        r.y = -20;
+        r.x = Math.random() * (this.cw + 80);
+      }
+      if (r.x < -30) r.x += this.cw + 60;
+    }
 
     const sidePlats = this.getSidePlatforms();
-    const isLava = this.currentMinigame === 'lava';
     const isZombie = this.currentMinigame === 'zombie';
-    if (isZombie) {
+    const isMeteor = this.currentMinigame === 'meteor';
+    const isInferno = this.currentMinigame === 'inferno';
+    const isStorm = this.currentMinigame === 'storm';
+    const isAvalanche = this.currentMinigame === 'avalanche';
+
+    if (isZombie || isMeteor || isInferno) {
       this.stepZombieEmbers();
+    }
+    if (isZombie) {
       this.updateZombieCamera();
+    }
+    if (isInferno) {
+      this.updateInfernoCamera();
+    }
+    if (isAvalanche) {
+      this.updateAvalancheCamera();
+      for (const fl of this.avaSnow) {
+        fl.x += Math.sin(this.miniTick * 0.03 + fl.y * 0.02) * 0.7;
+        fl.y += fl.sp;
+        if (fl.y > this.ch + 12) {
+          fl.y = -12;
+          fl.x = Math.random() * this.cw;
+        }
+      }
     }
     for (let i = this.deadRagdolls.length - 1; i >= 0; i--) {
       const entry = this.deadRagdolls[i];
-      const plats = entry.floorY !== undefined ? [[0, entry.floorY, this.cw, 36] as [number, number, number, number]] : sidePlats;
       const keep = stepDeadRagdoll(
         entry.rig,
-        plats,
-        entry.floorY !== undefined ? 0.24 : isLava || isZombie || this.currentMinigame === 'race' ? 0.42 : 0.34,
+        sidePlats,
+        0.42,
         isZombie ? this.zWorldW : this.cw,
-        isLava ? this.lavaCamY + this.ch + 140 : isZombie ? this.zGroundY + 90 : this.ch,
+        isZombie ? this.zGroundY + 90 : isInferno ? this.infWorldH + 90 : isAvalanche ? this.avaWorldH + 90 : this.ch + 40,
         true,
         false
       );
-      if (isLava && entry.rig.pelvis.y > this.lavaY) {
-        this.deadRagdolls.splice(i, 1);
-      } else if (!keep) {
+      if (!keep) {
         this.deadRagdolls.splice(i, 1);
       }
     }
@@ -1239,274 +1325,235 @@ export class MinigameEngine {
       this.roundEndTicks++;
     }
 
-    if (this.gameState !== 'playing' || (this.countdownActive && this.countdownTimer >= 0)) {
+    if (this.gameState !== 'playing' || this.zombieRevivePending || (this.countdownActive && this.countdownTimer >= 0)) {
       for (const p of this.players) {
         if (p.alive) this.driveMiniRig(p);
       }
       return;
     }
 
-    const isRace = this.currentMinigame === 'race';
+    const mDeckY = this.ch - 56;
+    for (const p of this.players) {
+      if (!p.alive) continue;
+      const inp = inputPlayers[p.index];
 
-    if (isLava) {
-      for (const pl of this.plats) {
-        if (pl.dx !== 0) {
-          pl.x += pl.dx;
-          if (pl.x < pl.minX) { pl.x = pl.minX; pl.dx = Math.abs(pl.dx); }
-          if (pl.x + pl.w > pl.maxX) { pl.x = pl.maxX - pl.w; pl.dx = -Math.abs(pl.dx); }
+      if (isZombie) {
+        const cap = 5.1;
+        const accel = p.onGround ? 1.06 : 0.72;
+        if (Math.abs(inp.x) > 0.12) {
+          if (inp.x > 0 && p.vx < cap) p.vx = Math.min(cap, p.vx + inp.x * accel);
+          else if (inp.x < 0 && p.vx > -cap) p.vx = Math.max(-cap, p.vx + inp.x * accel);
         }
-      }
-    }
 
-    if (!isRace) {
-      for (const p of this.players) {
-        if (!p.alive) continue;
-        const inp = inputPlayers[p.index];
+        const wantJ = inp.jump;
+        if (wantJ && !p.jh) {
+          p.jumpBuf = 7;
+        } else if (!wantJ) {
+          p.jh = false;
+        }
+        if (p.jumpBuf > 0) p.jumpBuf--;
 
-        if (isLava) {
-          const cap = 4.95;
-          const accel = p.onGround ? 1.02 : 0.70;
-          if (Math.abs(inp.x) > 0.12) {
-            if (inp.x > 0 && p.vx < cap) p.vx = Math.min(cap, p.vx + inp.x * accel);
-            else if (inp.x < 0 && p.vx > -cap) p.vx = Math.max(-cap, p.vx + inp.x * accel);
-          }
-
-          const wantJ = inp.jump;
-          if (wantJ && !p.jh) {
-            p.jumpBuf = 7;
-          } else if (!wantJ) {
-            p.jh = false;
-          }
-          if (p.jumpBuf > 0) p.jumpBuf--;
-
-          if (p.jumpBuf > 0 && (p.onGround || p.coyoteT > 0)) {
-            p.vy = -11.4;
-            p.onGround = false;
-            p.coyoteT = 0;
-            p.jumpBuf = 0;
-            p.jumpsLeft = 0;
-            p.jh = true;
-            p.highJ = inp.y < -0.8;
-            p.headVy += 2.8;
-            this.spawnParticle(p.x, p.y + 18, '#ffffff', 5, 2.2, 12);
-            PartyAudio.play('jump');
-          }
-          if (inp.y >= -0.72) p.highJ = false;
-          if (p.vy < -2.6 && !wantJ && !p.highJ) p.vy *= 0.87;
-
-          const prevBottom = p.y + p.radius;
-          const prevOnGround = p.onGround;
-          const preLandVy = p.vy;
-          p.vy = Math.min(12.5, p.vy + 0.42 * (p.vy > 0 ? 1.14 : 1.0));
-          p.vx *= p.onGround ? (Math.abs(inp.x) > 0.12 ? 0.88 : 0.78) : 0.96;
-          p.x += p.vx;
-          p.y += p.vy;
-
+        if (inp.y > 0.68 && p.onGround && p.y + 22 < this.zGroundY - 6) {
+          p.y += 7;
+          p.vy = 1.6;
           p.onGround = false;
-          for (const pl of this.plats) {
-            if (pl.kind === 'crumble' && pl.crumbleT !== undefined && pl.crumbleT <= 0) continue;
-            if (p.x + p.radius * 0.6 > pl.x && p.x - p.radius * 0.6 < pl.x + pl.w && p.vy >= 0) {
-              if (prevBottom <= pl.y + 11 && p.y + p.radius >= pl.y) {
-                p.y = pl.y - p.radius;
-                if (pl.kind === 'spring') {
-                  p.vy = -15.4;
-                  p.onGround = false;
-                  p.coyoteT = 0;
-                  p.headVy += 4.2;
-                  this.spawnParticle(p.x, pl.y, '#4ade80', 10, 3.6, 18);
-                  PartyAudio.play('jump');
-                } else {
-                  if (pl.kind === 'crumble' && pl.crumbleT === undefined) {
-                    pl.crumbleT = 46;
-                    this.spawnParticle(p.x, pl.y + 4, '#fb923c', 4, 2.2, 12);
-                  }
-                  p.vy = 0;
-                  p.x += pl.dx;
-                  p.onGround = true;
-                  p.coyoteT = 6;
-                  p.jumpsLeft = 1;
-                }
+          p.coyoteT = 0;
+        } else if (p.jumpBuf > 0 && (p.onGround || p.coyoteT > 0)) {
+          p.vy = -12.1;
+          p.onGround = false;
+          p.coyoteT = 0;
+          p.jumpBuf = 0;
+          p.jumpsLeft = 0;
+          p.jh = true;
+          p.highJ = inp.y < -0.8;
+          p.headVy += 2.8;
+          this.spawnParticle(p.x, p.y + 20, '#d4d4d8', 5, 2.2, 12);
+          PartyAudio.play('jump');
+        }
+        if (inp.y >= -0.72) p.highJ = false;
+        if (p.vy < -2.6 && !wantJ && !p.highJ) p.vy *= 0.87;
+
+        const footHh = 22;
+        const prevBottom = p.y + footHh;
+        const prevOnGround = p.onGround;
+        const preLandVy = p.vy;
+        p.vy = Math.min(13.2, p.vy + 0.42 * (p.vy > 0 ? 1.14 : 1.0));
+        p.vx *= p.onGround ? (Math.abs(inp.x) > 0.12 ? 0.87 : 0.77) : 0.96;
+        p.x += p.vx;
+        p.y += p.vy;
+
+        p.onGround = false;
+        if (p.y + footHh >= this.zGroundY) {
+          p.y = this.zGroundY - footHh;
+          p.vy = 0;
+          p.onGround = true;
+          p.coyoteT = 6;
+          p.jumpsLeft = 1;
+        } else {
+          for (const zp of this.zPlats) {
+            if (p.x + p.radius * 0.55 > zp.x && p.x - p.radius * 0.55 < zp.x + zp.w && p.vy >= 0) {
+              if (prevBottom <= zp.y + 11 && p.y + footHh >= zp.y) {
+                p.y = zp.y - footHh;
+                p.vy = 0;
+                p.onGround = true;
+                p.coyoteT = 6;
+                p.jumpsLeft = 1;
+                break;
               }
             }
           }
-          if (!p.onGround) p.coyoteT = Math.max(0, p.coyoteT - 1);
-          if (p.onGround && !prevOnGround && preLandVy > 3.2) {
-            p.sq = Math.min(10, Math.round(preLandVy * 0.85));
-            p.headVy += Math.min(5, preLandVy * 0.42);
-          }
-          p.x = Math.max(p.radius, Math.min(this.cw - p.radius, p.x));
-        } else if (isZombie) {
-          const cap = 5.1;
-          const accel = p.onGround ? 1.06 : 0.72;
-          if (Math.abs(inp.x) > 0.12) {
-            if (inp.x > 0 && p.vx < cap) p.vx = Math.min(cap, p.vx + inp.x * accel);
-            else if (inp.x < 0 && p.vx > -cap) p.vx = Math.max(-cap, p.vx + inp.x * accel);
-          }
+        }
+        if (!p.onGround) p.coyoteT = Math.max(0, p.coyoteT - 1);
+        if (p.onGround && !prevOnGround && preLandVy > 3.2) {
+          p.sq = Math.min(10, Math.round(preLandVy * 0.85));
+          p.headVy += Math.min(5, preLandVy * 0.42);
+        }
+        p.x = Math.max(p.radius + 14, Math.min(this.zWorldW - p.radius - 14, p.x));
+      } else {
+        // Unified crisp side-view platformer physics for Meteor, Inferno, Storm & Avalanche
+        const cap = isAvalanche ? 5.5 : 5.35;
+        const accel = p.onGround ? 1.12 : 0.78;
+        if (Math.abs(inp.x) > 0.12) {
+          if (inp.x > 0 && p.vx < cap) p.vx = Math.min(cap, p.vx + inp.x * accel);
+          else if (inp.x < 0 && p.vx > -cap) p.vx = Math.max(-cap, p.vx + inp.x * accel);
+        }
 
-          const wantJ = inp.jump;
-          if (wantJ && !p.jh) {
-            p.jumpBuf = 7;
-          } else if (!wantJ) {
-            p.jh = false;
-          }
-          if (p.jumpBuf > 0) p.jumpBuf--;
+        const wantJ = inp.jump;
+        if (wantJ && !p.jh) {
+          p.jumpBuf = 7;
+        } else if (!wantJ) {
+          p.jh = false;
+        }
+        if (p.jumpBuf > 0) p.jumpBuf--;
 
-          // Drop through elevated platforms/cars when pressing down while on an elevated surface
-          if (inp.y > 0.68 && p.onGround && p.y + 22 < this.zGroundY - 6) {
-            p.y += 7;
-            p.vy = 1.6;
-            p.onGround = false;
-            p.coyoteT = 0;
-          } else if (p.jumpBuf > 0 && (p.onGround || p.coyoteT > 0)) {
-            p.vy = -12.1;
-            p.onGround = false;
-            p.coyoteT = 0;
-            p.jumpBuf = 0;
-            p.jumpsLeft = 0;
-            p.jh = true;
-            p.highJ = inp.y < -0.8;
-            p.headVy += 2.8;
-            this.spawnParticle(p.x, p.y + 20, '#d4d4d8', 5, 2.2, 12);
-            PartyAudio.play('jump');
-          }
-          if (inp.y >= -0.72) p.highJ = false;
-          if (p.vy < -2.6 && !wantJ && !p.highJ) p.vy *= 0.87;
+        const floorLimit = isMeteor ? mDeckY - 6 : isInferno ? this.infWorldH - 89 : 99999;
+        const canDropThrough =
+          p.onGround &&
+          p.y + 22 < floorLimit &&
+          (isMeteor || isInferno || (isStorm && p.y + 22 < this.ch - 100));
 
-          const footHh = 22;
-          const prevBottom = p.y + footHh;
-          const prevOnGround = p.onGround;
-          const preLandVy = p.vy;
-          p.vy = Math.min(13.2, p.vy + 0.42 * (p.vy > 0 ? 1.14 : 1.0));
-          p.vx *= p.onGround ? (Math.abs(inp.x) > 0.12 ? 0.87 : 0.77) : 0.96;
-          p.x += p.vx;
-          p.y += p.vy;
-
+        if (inp.y > 0.68 && canDropThrough) {
+          p.y += 7;
+          p.vy = 1.6;
           p.onGround = false;
-          if (p.y + footHh >= this.zGroundY) {
-            p.y = this.zGroundY - footHh;
-            p.vy = 0;
-            p.onGround = true;
-            p.coyoteT = 6;
-            p.jumpsLeft = 1;
-          } else {
-            for (const zp of this.zPlats) {
-              if (p.x + p.radius * 0.55 > zp.x && p.x - p.radius * 0.55 < zp.x + zp.w && p.vy >= 0) {
-                if (prevBottom <= zp.y + 11 && p.y + footHh >= zp.y) {
-                  p.y = zp.y - footHh;
-                  p.vy = 0;
-                  p.onGround = true;
-                  p.coyoteT = 6;
-                  p.jumpsLeft = 1;
-                  break;
-                }
+          p.coyoteT = 0;
+        } else if (p.jumpBuf > 0 && (p.onGround || p.coyoteT > 0)) {
+          p.vy = isInferno ? -12.6 : -12.0;
+          p.onGround = false;
+          p.coyoteT = 0;
+          p.jumpBuf = 0;
+          p.jumpsLeft = 0;
+          p.jh = true;
+          p.highJ = inp.y < -0.8;
+          p.headVy += 2.8;
+          this.spawnParticle(p.x, p.y + 20, '#94a3b8', 5, 2.2, 12);
+          PartyAudio.play('jump');
+        }
+        if (inp.y >= -0.72) p.highJ = false;
+        if (p.vy < -2.6 && !wantJ && !p.highJ) p.vy *= 0.87;
+
+        const footHh = 22;
+        const prevBottom = p.y + footHh;
+        const prevOnGround = p.onGround;
+        const preLandVy = p.vy;
+        p.vy = Math.min(13.4, p.vy + 0.42 * (p.vy > 0 ? 1.14 : 1.0));
+        p.vx *= p.onGround ? (Math.abs(inp.x) > 0.12 ? 0.87 : 0.77) : 0.96;
+        p.x += p.vx;
+        p.y += p.vy;
+
+        p.onGround = false;
+        for (const mp of this.mPlats) {
+          if (mp.spring && p.x + p.radius * 0.6 > mp.x && p.x - p.radius * 0.6 < mp.x + mp.w && p.vy >= 0) {
+            if (prevBottom <= mp.y + 12 && p.y + footHh >= mp.y) {
+              p.y = mp.y - footHh;
+              p.vy = isInferno ? -16.4 : -14.8;
+              p.onGround = false;
+              p.coyoteT = 0;
+              p.headVy += 4;
+              this.spawnParticle(p.x, mp.y, '#4ade80', 10, 3.6, 18);
+              this.spawnRing(p.x, mp.y, 38, '#4ade80', 14);
+              PartyAudio.play('jump');
+              break;
+            }
+          }
+        }
+        if (isMeteor && p.y + footHh >= mDeckY) {
+          p.y = mDeckY - footHh;
+          p.vy = 0;
+          p.onGround = true;
+          p.coyoteT = 6;
+          p.jumpsLeft = 1;
+        } else if (p.vy >= 0) {
+          for (const mp of this.mPlats) {
+            if (mp.spring) continue;
+            if (p.x + p.radius * 0.55 > mp.x && p.x - p.radius * 0.55 < mp.x + mp.w) {
+              if (prevBottom <= mp.y + 12 && p.y + footHh >= mp.y) {
+                p.y = mp.y - footHh;
+                p.vy = 0;
+                p.onGround = true;
+                p.coyoteT = 6;
+                p.jumpsLeft = 1;
+                break;
               }
             }
           }
-          if (!p.onGround) p.coyoteT = Math.max(0, p.coyoteT - 1);
-          if (p.onGround && !prevOnGround && preLandVy > 3.2) {
-            p.sq = Math.min(10, Math.round(preLandVy * 0.85));
-            p.headVy += Math.min(5, preLandVy * 0.42);
-          }
-          p.x = Math.max(p.radius + 14, Math.min(this.zWorldW - p.radius - 14, p.x));
-        } else {
-          const isBombHolder = this.currentMinigame === 'bomb' && this.ball?.holder === p.index;
-          const moveBoost = isBombHolder ? 1.46 : 1.24;
-          p.vx += inp.x * moveBoost;
-          p.vy += inp.y * moveBoost;
-          p.vx *= 0.87;
-          p.vy *= 0.87;
-          p.x += p.vx;
-          p.y += p.vy;
         }
-
-        // Aim angle
-        if (typeof inp.aimAngle === 'number' && !Number.isNaN(inp.aimAngle)) {
-          p.angle = inp.aimAngle;
-        } else if (isZombie) {
-          const aimX = inp.releaseAction ? inp.releaseX : inp.x;
-          const aimY = inp.releaseAction ? inp.releaseY : inp.y;
-          if (Math.abs(aimX) > 0.14) {
-            const verticalTilt = inp.jump && aimY < -0.5 ? 0 : aimY * 0.68;
-            p.angle = Math.atan2(verticalTilt, aimX);
-          } else if (aimY > 0.48) {
-            p.angle = Math.cos(p.angle) >= 0 ? 0.45 : Math.PI - 0.45;
-          } else if (aimY < -0.48 && !inp.jump) {
-            p.angle = Math.cos(p.angle) >= 0 ? -0.68 : Math.PI + 0.68;
-          }
-        } else {
-          const aimX = inp.releaseAction ? inp.releaseX : inp.x;
-          const aimY = inp.releaseAction ? inp.releaseY : inp.y;
-          if (Math.abs(aimX) > 0.1 || Math.abs(aimY) > 0.1) {
-            p.angle = Math.atan2(aimY, aimX);
-          }
+        if (!p.onGround) p.coyoteT = Math.max(0, p.coyoteT - 1);
+        if (p.onGround && !prevOnGround && preLandVy > 3.2) {
+          p.sq = Math.min(10, Math.round(preLandVy * 0.85));
+          p.headVy += Math.min(5, preLandVy * 0.42);
         }
-
-        if (Math.hypot(p.vx, p.vy) > 2.2) {
-          p.trail.push({ x: p.x, y: p.y, life: 10 });
-          if (p.trail.length > 8) p.trail.shift();
-        }
-        p.trail = p.trail.filter((tr) => --tr.life > 0);
-
-        if (p.invincible > 0) p.invincible--;
-        if (p.attackTimer > 0 && --p.attackTimer <= 0) p.isAttacking = false;
-        if (p.dashCooldown > 0) p.dashCooldown--;
-        if (p.weapT > 0 && --p.weapT <= 0) p.weap = 'blaster';
-
-        // Boundary & Pillar collisions
-        if (this.currentMinigame === 'sumo') {
-          const cx = this.cw / 2;
-          const cy = this.ch / 2;
-          const ringR = Math.min(this.cw, this.ch) * 0.37 * this.ringScale;
-          if (Math.hypot(p.x - cx, p.y - cy) > ringR) this.killPlayer(p);
-        } else if (this.currentMinigame === 'futbol') {
-          p.x = Math.max(10 + p.radius, Math.min(this.cw - 10 - p.radius, p.x));
-          p.y = Math.max(52 + p.radius, Math.min(this.ch - 8 - p.radius, p.y));
-        } else if (!isLava && !isZombie) {
-          p.x = Math.max(p.radius + 8, Math.min(this.cw - p.radius - 8, p.x));
-          p.y = Math.max(p.radius + 46, Math.min(this.ch - p.radius - 8, p.y));
-        }
-
-        if (this.pillars.length > 0) {
-          this.resolvePillarCollisions(p);
-        }
-
-        this.updateMiniSprings(p, isLava || isZombie);
+        const edgePad = isInferno || isAvalanche ? 28 : 10;
+        p.x = Math.max(p.radius + edgePad, Math.min(this.cw - p.radius - edgePad, p.x));
       }
+
+      // Aim angle
+      if (typeof inp.aimAngle === 'number' && !Number.isNaN(inp.aimAngle)) {
+        p.angle = inp.aimAngle;
+      } else {
+        const aimX = inp.releaseAction ? inp.releaseX : inp.x;
+        const aimY = inp.releaseAction ? inp.releaseY : inp.y;
+        if (Math.abs(aimX) > 0.14) {
+          const verticalTilt = inp.jump && aimY < -0.5 ? 0 : aimY * 0.68;
+          p.angle = Math.atan2(verticalTilt, aimX);
+        } else if (aimY > 0.48) {
+          p.angle = Math.cos(p.angle) >= 0 ? 0.45 : Math.PI - 0.45;
+        } else if (aimY < -0.48 && !inp.jump) {
+          p.angle = Math.cos(p.angle) >= 0 ? -0.68 : Math.PI + 0.68;
+        }
+      }
+
+      if (Math.hypot(p.vx, p.vy) > 2.2) {
+        p.trail.push({ x: p.x, y: p.y, life: 10 });
+        if (p.trail.length > 8) p.trail.shift();
+      }
+      p.trail = p.trail.filter((tr) => --tr.life > 0);
+
+      if (p.invincible > 0) p.invincible--;
+      if (p.attackTimer > 0 && --p.attackTimer <= 0) p.isAttacking = false;
+      if (p.dashCooldown > 0) p.dashCooldown--;
+      if (p.snowCd > 0) p.snowCd--;
+      if (p.weapT > 0 && --p.weapT <= 0) p.weap = 'blaster';
+
+      this.updateMiniSprings(p, true);
     }
 
-    // Dash / Shove mechanics
-    if (['sumo', 'blades', 'bomb', 'laser', 'lava'].includes(this.currentMinigame)) {
+    // Dash / Shove mechanics (Meteor, Inferno, Storm, Avalanche)
+    if (!isZombie) {
       for (let i = 0; i < this.players.length; i++) {
         const p = this.players[i];
         if (!p.alive) continue;
         const inp = inputPlayers[i];
         if ((inp.action || inp.releaseAction) && p.dashCooldown <= 0) {
-          const dashPow =
-            this.currentMinigame === 'laser' ? 15.2 :
-            this.currentMinigame === 'sumo' ? (p.shield ? 17.0 : 13.8) :
-            this.currentMinigame === 'blades' ? 13.2 : 12.4;
-          const dax = Math.cos(p.angle);
-          const day = Math.sin(p.angle);
-          p.vx += dax * dashPow;
-          if (!isLava) p.vy += day * dashPow;
-          else p.vy -= 4.4;
-          p.leanVx -= dax * 4.5;
-          p.headVx -= dax * 6.0;
-          p.tiltV += dax * 0.16;
-          p.dashCooldown =
-            this.currentMinigame === 'blades' ? 30 :
-            this.currentMinigame === 'laser' ? 34 :
-            this.currentMinigame === 'lava' ? 34 : 32;
+          const dirX = Math.abs(inp.x) > 0.15 ? Math.sign(inp.x) : Math.cos(p.angle) >= 0 ? 1 : -1;
+          p.vx += dirX * 11.8;
+          p.vy -= 2.6;
+          p.leanVx -= dirX * 4.5;
+          p.dashCooldown = 34;
           p.isAttacking = true;
           p.attackTimer = 14;
-          if (this.currentMinigame === 'laser') {
-            p.invincible = Math.max(p.invincible, 15);
-            this.spawnRing(p.x, p.y, 34, '#38bdf8', 12);
-          }
-          if (this.currentMinigame === 'sumo') {
-            this.spawnRing(p.x, p.y, p.shield ? 58 : 44, p.shield ? '#fbbf24' : p.color, 16);
-          }
-          this.spawnParticle(p.x, p.y, p.color, 8, 3.6, 16);
+          this.spawnRing(p.x, p.y, 40, p.color, 14);
+          this.spawnParticle(p.x, p.y, isStorm || isAvalanche ? '#38bdf8' : '#fbbf24', 9, 3.8, 16);
           PartyAudio.play('jump');
         }
         for (let j = i + 1; j < this.players.length; j++) {
@@ -1517,29 +1564,18 @@ export class MinigameEngine {
           const dist = Math.hypot(dx, dy);
           if (dist < p.radius + o.radius) {
             const ang = Math.atan2(dy, dx);
-            const mult = this.currentMinigame === 'sumo' ? 11.4 : 9.4;
-            const atkMultP = this.currentMinigame === 'sumo' && p.shield ? 1.45 : 1.0;
-            const atkMultO = this.currentMinigame === 'sumo' && o.shield ? 1.45 : 1.0;
-            const defMultO = this.currentMinigame === 'sumo' && o.shield ? 0.6 : 1.0;
-            const defMultP = this.currentMinigame === 'sumo' && p.shield ? 0.6 : 1.0;
-            const f1 = (p.isAttacking ? mult : 3.8) * atkMultP * defMultO;
-            const f2 = (o.isAttacking ? mult : 3.8) * atkMultO * defMultP;
+            const mult = isStorm || isAvalanche ? 11.4 : 10.8;
+            const f1 = p.isAttacking ? mult : 4.2;
+            const f2 = o.isAttacking ? mult : 4.2;
             const ca = Math.cos(ang);
-            const sa = Math.sin(ang);
             o.vx += ca * f1;
-            o.vy += sa * f1;
+            o.vy += -3.9;
             p.vx -= ca * f2;
-            p.vy -= sa * f2;
-            o.leanVx -= ca * f1 * 0.45;
-            o.headVx -= ca * f1 * 0.65;
-            o.tiltV += ca * 0.12;
-            p.leanVx += ca * f2 * 0.45;
-            p.headVx += ca * f2 * 0.65;
-            p.tiltV -= ca * 0.12;
+            p.vy += -3.9;
             const rO = this.rigs[o.index];
             const rP = this.rigs[p.index];
-            if (rO) applyRagdollImpulse(rO, ca * f1 * 0.75, sa * f1 * 0.75 - 1.5, p.isAttacking ? 10 : 3);
-            if (rP) applyRagdollImpulse(rP, -ca * f2 * 0.75, -sa * f2 * 0.75 - 1.5, o.isAttacking ? 10 : 3);
+            if (rO) applyRagdollImpulse(rO, ca * f1 * 0.78, -2.5, p.isAttacking ? 10 : 3);
+            if (rP) applyRagdollImpulse(rP, -ca * f2 * 0.78, -2.5, o.isAttacking ? 10 : 3);
             if (p.isAttacking || o.isAttacking) {
               this.spawnParticle((p.x + o.x) / 2, (p.y + o.y) / 2, '#fbbf24', 10, 4, 16);
               this.triggerShake(5, 8);
@@ -1550,24 +1586,21 @@ export class MinigameEngine {
       }
     }
 
-    // Projectiles (zombie blasters + sniper ricochet bullets)
-    this.updateProjectiles();
+    // Projectiles (zombie blasters)
+    if (isZombie) {
+      this.updateProjectiles();
+    }
 
     // Mode-specific simulation
     switch (this.currentMinigame) {
       case 'zombie': this.updateZombie(); break;
-      case 'samurai': this.updateSamurai(); break;
-      case 'sniper': this.updateSniper(); break;
-      case 'blades': this.updateBlades(); break;
-      case 'sumo': this.updateSumo(); break;
-      case 'futbol': this.updateFutbol(); break;
-      case 'race': this.updateRace(); break;
-      case 'bomb': this.updateBomb(); break;
-      case 'laser': this.updateLaser(); break;
-      case 'lava': this.updateLava(); break;
+      case 'meteor': this.updateMeteor(); break;
+      case 'inferno': this.updateInferno(); break;
+      case 'storm': this.updateStorm(); break;
+      case 'avalanche': this.updateAvalanche(); break;
     }
 
-    if (['sumo', 'samurai', 'sniper', 'blades', 'bomb', 'laser', 'lava'].includes(this.currentMinigame)) {
+    if (this.currentMinigame !== 'zombie') {
       const alive = this.players.filter((p) => p.alive);
       if (alive.length <= 1) {
         if (alive.length === 1) alive[0].score++;
@@ -1604,11 +1637,11 @@ export class MinigameEngine {
 
       if (this.zombieWave >= this.zMaxWaves) {
         this.zombieWon = true;
-        this.addPopup(this.zCamX, this.zCamY - 56, '20 DALĞA TAMAMLANDI! QALİBİYYƏT!', '#4ade80');
+        this.addPopup(this.zCamX, this.zCamY - 56, `${this.zMaxWaves} DALĞA TAMAMLANDI! QALİBİYYƏT!`, '#4ade80');
         for (const p of this.players) {
           if (p.alive) {
             p.score++;
-            p.coins += 20;
+            p.coins += 100;
           }
         }
         PartyAudio.play('portal');
@@ -1618,7 +1651,7 @@ export class MinigameEngine {
 
       this.zombieWave++;
       this.waveBossSpawned = false;
-      this.nextBossAt = this.zombieKills + Math.min(18, 7 + this.zombieWave);
+      this.nextBossAt = this.zombieKills + Math.min(22, 7 + Math.floor(this.zombieWave * 0.8));
       this.addPopup(this.zCamX, this.zCamY - 56, `DALĞA ${this.zombieWave} / ${this.zMaxWaves}!`, '#4ade80');
       PartyAudio.play('portal');
 
@@ -1718,10 +1751,9 @@ export class MinigameEngine {
   }
 
   private updateProjectiles() {
-    const isZombie = this.currentMinigame === 'zombie';
-    const maxW = isZombie ? this.zWorldW : this.cw;
-    const minY = isZombie ? -400 : 46;
-    const maxY = isZombie ? this.zGroundY + 4 : this.ch - 8;
+    const maxW = this.zWorldW;
+    const minY = -400;
+    const maxY = this.zGroundY + 4;
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const pr = this.projectiles[i];
@@ -1784,138 +1816,50 @@ export class MinigameEngine {
       pr.y += pr.vy;
       pr.life--;
 
-      if (pr.life <= 0) {
+      if (pr.life <= 0 || pr.x < 10 || pr.x > maxW - 10 || pr.y < minY || pr.y > maxY) {
+        if (pr.y >= this.zGroundY) {
+          this.spawnParticle(pr.x, this.zGroundY - 2, '#d4d4d8', 4, 2.2, 10);
+        }
         this.projectiles.splice(i, 1);
         continue;
       }
 
-      // Arena wall collision (ricochet if bounces > 0)
-      let hitWall = false;
-      if (pr.x < 8 || pr.x > maxW - 8) {
-        if ((pr.bounces || 0) > 0) {
-          pr.bounces!--;
-          pr.vx *= -1;
-          pr.x = Math.max(9, Math.min(maxW - 9, pr.x));
-          this.spawnParticle(pr.x, pr.y, pr.color || '#ef4444', 6, 3, 12);
-          PartyAudio.play('iceCrack');
-        } else {
-          hitWall = true;
-        }
-      }
-      if (pr.y < minY || pr.y > maxY) {
-        if ((pr.bounces || 0) > 0) {
-          pr.bounces!--;
-          pr.vy *= -1;
-          pr.y = Math.max(minY + 1, Math.min(maxY - 1, pr.y));
-          this.spawnParticle(pr.x, pr.y, pr.color || '#ef4444', 6, 3, 12);
-          PartyAudio.play('iceCrack');
-        } else {
-          if (isZombie && pr.y >= this.zGroundY) {
-            this.spawnParticle(pr.x, this.zGroundY - 2, '#d4d4d8', 4, 2.2, 10);
-          }
-          hitWall = true;
-        }
-      }
-      if (hitWall) {
-        this.projectiles.splice(i, 1);
-        continue;
-      }
-
-      // Pillar collisions
-      let destroyedByPillar = false;
-      for (const pil of this.pillars) {
-        if (pr.x >= pil.x && pr.x <= pil.x + pil.w && pr.y >= pil.y && pr.y <= pil.y + pil.h) {
-          if ((pr.bounces || 0) > 0) {
-            pr.bounces!--;
-            const prevX = pr.x - pr.vx;
-            if (prevX < pil.x || prevX > pil.x + pil.w) pr.vx *= -1;
-            else pr.vy *= -1;
-            pr.x += pr.vx;
-            pr.y += pr.vy;
-            this.spawnParticle(pr.x, pr.y, pr.color || '#fbbf24', 7, 3.2, 14);
-            PartyAudio.play('iceCrack');
-          } else {
-            this.spawnParticle(pr.x, pr.y, '#a1a1aa', 5, 2.4, 12);
-            destroyedByPillar = true;
-          }
+      // Hit explosive red gasoline barrels
+      let hitBarrel = false;
+      for (const br of this.zBarrels) {
+        if (br.hp <= 0) continue;
+        if (Math.abs(pr.x - br.x) < 15 && Math.abs(pr.y - br.y) < 19) {
+          br.hp = 0;
+          br.respawnT = 1350;
+          this.triggerZombieExplosion(br.x, br.y, 155, 420, pr.owner);
+          hitBarrel = true;
           break;
         }
       }
-      if (destroyedByPillar) {
+      if (hitBarrel) {
         this.projectiles.splice(i, 1);
         continue;
       }
 
-      // Hit explosive red gasoline barrels (1-shot big explosion!)
-      if (isZombie) {
-        let hitBarrel = false;
-        for (const br of this.zBarrels) {
-          if (br.hp <= 0) continue;
-          if (Math.abs(pr.x - br.x) < 15 && Math.abs(pr.y - br.y) < 19) {
-            br.hp = 0;
-            br.respawnT = 1350;
-            this.triggerZombieExplosion(br.x, br.y, 155, 420, pr.owner);
-            hitBarrel = true;
-            break;
-          }
-        }
-        if (hitBarrel) {
-          this.projectiles.splice(i, 1);
-          continue;
-        }
-      }
-
       // Hit Zombies in side-view Zombie mode
-      if (isZombie) {
-        let hitZ = false;
-        for (let zi = this.zombies.length - 1; zi >= 0; zi--) {
-          const z = this.zombies[zi];
-          const zr = z.kind === 3 ? 34 : z.kind === 2 ? 25 : z.kind === 1 ? 17 : 19;
-          const zCenterY = z.y - (z.kind === 3 ? 12 : z.kind === 2 ? 6 : 3);
-          if (Math.hypot(z.x - pr.x, zCenterY - pr.y) < zr + (pr.radius || 5)) {
-            const dmg = pr.dmg || 28;
-            z.hp -= dmg;
-            z.hitFlash = 7;
-            z.vx += Math.sign(pr.vx || 1) * (z.kind === 3 ? 0.9 : z.kind === 2 ? 1.8 : 4.2);
-            z.vy = Math.min(z.vy, z.kind === 3 ? -0.4 : z.kind === 2 ? -0.8 : -2.2);
-            this.spawnParticle(pr.x, pr.y, z.kind === 3 ? '#ef4444' : '#84cc16', 7, 3.4, 14);
-            if (z.hp <= 0) {
-              this.handleZombieKilled(zi, pr.owner);
-            } else {
-              PartyAudio.play('hit');
-            }
-            hitZ = true;
-            break;
+      for (let zi = this.zombies.length - 1; zi >= 0; zi--) {
+        const z = this.zombies[zi];
+        const zr = z.kind === 3 ? 34 : z.kind === 2 ? 25 : z.kind === 1 ? 17 : 19;
+        const zCenterY = z.y - (z.kind === 3 ? 12 : z.kind === 2 ? 6 : 3);
+        if (Math.hypot(z.x - pr.x, zCenterY - pr.y) < zr + (pr.radius || 5)) {
+          const dmg = pr.dmg || 28;
+          z.hp -= dmg;
+          z.hitFlash = 7;
+          z.vx += Math.sign(pr.vx || 1) * (z.kind === 3 ? 0.9 : z.kind === 2 ? 1.8 : 4.2);
+          z.vy = Math.min(z.vy, z.kind === 3 ? -0.4 : z.kind === 2 ? -0.8 : -2.2);
+          this.spawnParticle(pr.x, pr.y, z.kind === 3 ? '#ef4444' : '#84cc16', 7, 3.4, 14);
+          if (z.hp <= 0) {
+            this.handleZombieKilled(zi, pr.owner);
+          } else {
+            PartyAudio.play('hit');
           }
-        }
-        if (hitZ) {
           this.projectiles.splice(i, 1);
-          continue;
-        }
-      }
-
-      // Hit Players in Sniper mode
-      if (this.currentMinigame === 'sniper') {
-        for (const pl of this.players) {
-          if (!pl.alive || pl.invincible > 0) continue;
-          if (pl.index === pr.owner && pr.life > 110) continue;
-          if (Math.hypot(pl.x - pr.x, pl.y - pr.y) < pl.radius + (pr.radius || 5)) {
-            const ang = Math.atan2(pr.vy, pr.vx);
-            pl.hp -= pr.dmg || 55;
-            pl.vx += Math.cos(ang) * 10.5;
-            pl.vy += Math.sin(ang) * 10.5;
-            pl.invincible = 24;
-            const rPl = this.rigs[pl.index];
-            if (rPl) applyRagdollImpulse(rPl, Math.cos(ang) * 11, Math.sin(ang) * 11 - 2.5, 14, pr.y);
-            this.hitStop = Math.max(this.hitStop, 3);
-            this.spawnParticle(pr.x, pr.y, pr.color || '#ef4444', 18, 5.2, 24);
-            this.spawnRing(pl.x, pl.y, 42, pr.color || '#ef4444', 16);
-            this.triggerShake(7, 10);
-            PartyAudio.play('boom');
-            if (pl.hp <= 0) this.killPlayer(pl);
-            this.projectiles.splice(i, 1);
-            break;
-          }
+          break;
         }
       }
     }
@@ -1970,14 +1914,57 @@ export class MinigameEngine {
   }
 
   private stepZombieEmbers() {
+    const isInf = this.currentMinigame === 'inferno';
+    const isMet = this.currentMinigame === 'meteor';
+    const maxW = isInf || isMet ? this.cw : this.zWorldW;
+    const minY = isInf ? 40 : 30;
+    const spawnY = isInf ? Math.min(this.infWorldH - 30, this.infLavaY - 12) : isMet ? this.ch - 32 : this.zGroundY - 10;
     for (const em of this.zEmbers) {
       em.x += em.vx + Math.sin(this.miniTick * 0.02 + em.y * 0.03) * 0.25;
       em.y += em.vy;
-      if (em.y < 30 || em.x < -30 || em.x > this.zWorldW + 30) {
-        em.x = Math.random() * this.zWorldW;
-        em.y = this.zGroundY - 10 - Math.random() * 140;
+      if (em.y < minY || em.x < -30 || em.x > maxW + 30) {
+        em.x = Math.random() * maxW;
+        em.y = spawnY - Math.random() * (isInf ? 460 : 140);
       }
     }
+  }
+
+  private updateInfernoCamera() {
+    const alive = this.players.filter((p) => p.alive);
+    const group = alive.length > 0 ? alive : this.players;
+    if (group.length === 0) return;
+
+    let minY = Infinity;
+    let sumY = 0;
+    for (const p of group) {
+      if (p.y < minY) minY = p.y;
+      sumY += p.y;
+    }
+    const avgY = sumY / group.length;
+    const focusY = Math.min(avgY, minY + this.ch * 0.34);
+    const minCam = this.ch * 0.5;
+    const maxCam = Math.max(minCam, this.infWorldH - this.ch * 0.5);
+    const targetY = Math.max(minCam, Math.min(maxCam, focusY - 24));
+    this.infCamY += (targetY - this.infCamY) * 0.11;
+  }
+
+  private updateAvalancheCamera() {
+    const alive = this.players.filter((p) => p.alive);
+    const group = alive.length > 0 ? alive : this.players;
+    if (group.length === 0) return;
+
+    let maxY = -Infinity;
+    let sumY = 0;
+    for (const p of group) {
+      if (p.y > maxY) maxY = p.y;
+      sumY += p.y;
+    }
+    const avgY = sumY / group.length;
+    const focusY = Math.max(avgY, maxY - this.ch * 0.32);
+    const minCam = this.ch * 0.5;
+    const maxCam = Math.max(minCam, this.avaWorldH - this.ch * 0.5);
+    const targetY = Math.max(minCam, Math.min(maxCam, focusY + 76));
+    this.avaCamY += (targetY - this.avaCamY) * 0.12;
   }
 
   private updateZombieCamera() {
@@ -2031,12 +2018,12 @@ export class MinigameEngine {
     }
     const maxHp =
       kind === 3
-        ? (this.zombieWave >= this.zMaxWaves ? 2800 : 340 + this.zombieWave * 110)
+        ? (this.zombieWave >= this.zMaxWaves ? 14500 : 340 + this.zombieWave * 115)
         : kind === 2
-          ? 140 + this.zombieWave * 6
+          ? 140 + this.zombieWave * 12
           : kind === 1
-            ? 36 + Math.floor(this.zombieWave * 1.5)
-            : 60 + this.zombieWave * 2;
+            ? 36 + Math.floor(this.zombieWave * 3)
+            : 60 + this.zombieWave * 5;
     this.zombies.push({
       x: Math.max(30, Math.min(this.zWorldW - 30, x)),
       y,
@@ -2096,8 +2083,8 @@ export class MinigameEngine {
       }
     }
 
-    const spawnEvery = Math.max(26, 76 - Math.min(8, this.zombieWave) * 6);
-    const maxZombies = Math.min(26, 15 + this.zombieWave * 2);
+    const spawnEvery = Math.max(18, 76 - Math.min(12, this.zombieWave) * 5);
+    const maxZombies = Math.min(32, 15 + this.zombieWave * 2);
     if (--this.zombieSpawnTimer <= 0 && this.zombies.length < maxZombies) {
       this.zombieSpawnTimer = spawnEvery;
       this.spawnZombie();
@@ -2252,14 +2239,15 @@ export class MinigameEngine {
         if (d < bestDist) { bestDist = d; nearest = pl; }
       }
 
+      const speedWave = Math.min(34, this.zombieWave);
       const sp =
         z.kind === 3
-          ? 0.72 + this.zombieWave * 0.03
+          ? 0.72 + speedWave * 0.03
           : z.kind === 1
-            ? 1.24 + this.zombieWave * 0.045
+            ? 1.24 + speedWave * 0.04
             : z.kind === 2
-              ? 0.62 + this.zombieWave * 0.025
-              : 0.78 + this.zombieWave * 0.035;
+              ? 0.62 + speedWave * 0.025
+              : 0.78 + speedWave * 0.032;
 
       if (nearest) {
         const dx = nearest.x - z.x;
@@ -2335,974 +2323,689 @@ export class MinigameEngine {
       }
     }
 
-    if (alivePlayers.length === 0) {
-      const best = Math.max(...this.players.map((p) => p.coins), 0);
+    if (alivePlayers.length === 0 && !this.zombieWon && !this.zombieRevivePending) {
+      if (this.netRole === 'guest') return;
+      this.zombieRevivePending = true;
+      const promptInfo: ZombieRevivePrompt = {
+        wave: this.zombieWave,
+        maxWaves: this.zMaxWaves,
+        kills: this.zombieKills,
+        cost: this.getZombieContinueCost(),
+      };
+      this.zombieRevivePrompt = promptInfo;
+      resetInputs();
+      this.callbacks?.onZombieRevivePrompt?.(promptInfo);
+    }
+  }
+
+  private updateMeteor() {
+    if (this.gameTimer > 0) this.gameTimer--;
+    if (this.gameTimer <= 0) {
       for (const p of this.players) {
-        if (p.coins === best) p.score++;
+        if (p.alive) p.score++;
       }
       this.endRound();
-    }
-  }
-
-  private updateSamurai() {
-    for (let i = 0; i < this.players.length; i++) {
-      const p = this.players[i];
-      if (!p.alive) continue;
-      const inp = inputPlayers[i];
-      if ((inp.action || inp.releaseAction) && p.dashCooldown <= 0) {
-        const dax = Math.cos(p.angle);
-        const day = Math.sin(p.angle);
-        p.vx += dax * 15.5;
-        p.vy += day * 15.5;
-        p.leanVx -= dax * 5.2;
-        p.headVx -= dax * 6.5;
-        p.tiltV += dax * 0.2;
-        p.dashCooldown = 30;
-        p.isAttacking = true;
-        p.attackTimer = 14;
-        const rP = this.rigs[p.index];
-        if (rP) applyWeaponKickToRig(rP, p.angle + Math.PI, 4.5, false);
-        this.slashes.push({
-          x: p.x + dax * 14,
-          y: p.y + day * 14,
-          angle: p.angle,
-          color: p.color,
-          life: 11,
-          maxLife: 11,
-          radius: 44,
-        });
-        this.spawnParticle(p.x + dax * 22, p.y + day * 22, '#ffffff', 7, 3.6, 14);
-        PartyAudio.play('shot');
-
-        // Katana Hit / Parry Check
-        for (const o of this.players) {
-          if (!o.alive || o.index === p.index || o.invincible > 0) continue;
-          const dx = o.x - p.x;
-          const dy = o.y - p.y;
-          const dist = Math.hypot(dx, dy);
-          const angTo = Math.atan2(dy, dx);
-          if (dist < 62 && angleDiff(p.angle, angTo) < 1.15) {
-            const rO = this.rigs[o.index];
-            if (o.isAttacking) {
-              // KATANA PARRY CLASH!
-              const mx = (p.x + o.x) / 2;
-              const my = (p.y + o.y) / 2;
-              this.spawnParticle(mx, my, '#fde047', 22, 6, 22);
-              this.spawnRing(mx, my, 52, '#fbbf24', 18);
-              this.addPopup(mx, my - 26, 'PARİ!', '#fde047');
-              this.triggerShake(8, 12);
-              this.hitStop = Math.max(this.hitStop, 3);
-              p.vx -= Math.cos(angTo) * 9;
-              p.vy -= Math.sin(angTo) * 9;
-              o.vx += Math.cos(angTo) * 9;
-              o.vy += Math.sin(angTo) * 9;
-              if (rP) applyRagdollImpulse(rP, -Math.cos(angTo) * 9, -Math.sin(angTo) * 9, 10);
-              if (rO) applyRagdollImpulse(rO, Math.cos(angTo) * 9, Math.sin(angTo) * 9, 10);
-              p.invincible = 14;
-              o.invincible = 14;
-              PartyAudio.play('iceCrack');
-            } else {
-              o.hp -= 50;
-              o.invincible = 24;
-              o.vx += Math.cos(angTo) * 11;
-              o.vy += Math.sin(angTo) * 11;
-              if (rO) applyRagdollImpulse(rO, Math.cos(angTo) * 11, Math.sin(angTo) * 11 - 2.5, 14);
-              this.hitStop = Math.max(this.hitStop, 3);
-              this.spawnParticle(o.x, o.y, '#ef4444', 18, 5, 22);
-              this.spawnRing(o.x, o.y, 40, p.color, 15);
-              this.triggerShake(7, 10);
-              PartyAudio.play('hit');
-              if (o.hp <= 0) this.killPlayer(o);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  private raycastBouncePath(ox: number, oy: number, ang: number, maxDist: number, maxBounces = 2): { x: number; y: number }[] {
-    const pts: { x: number; y: number }[] = [{ x: ox, y: oy }];
-    const step = 6;
-    let vx = Math.cos(ang) * step;
-    let vy = Math.sin(ang) * step;
-    let x = ox;
-    let y = oy;
-    let bounces = 0;
-    for (let d = 0; d < maxDist; d += step) {
-      const nx = x + vx;
-      const ny = y + vy;
-      let bounced = false;
-      if (nx <= 8 || nx >= this.cw - 8) {
-        if (bounces < maxBounces) {
-          pts.push({ x: Math.max(8, Math.min(this.cw - 8, nx)), y: ny });
-          vx *= -1;
-          bounces++;
-          bounced = true;
-        } else {
-          pts.push({ x: Math.max(8, Math.min(this.cw - 8, nx)), y: ny });
-          return pts;
-        }
-      }
-      if (ny <= 46 || ny >= this.ch - 8) {
-        if (bounces < maxBounces) {
-          pts.push({ x: nx, y: Math.max(46, Math.min(this.ch - 8, ny)) });
-          vy *= -1;
-          bounces++;
-          bounced = true;
-        } else {
-          pts.push({ x: nx, y: Math.max(46, Math.min(this.ch - 8, ny)) });
-          return pts;
-        }
-      }
-      if (!bounced) {
-        for (const pil of this.pillars) {
-          if (nx >= pil.x && nx <= pil.x + pil.w && ny >= pil.y && ny <= pil.y + pil.h) {
-            if (bounces < maxBounces) {
-              pts.push({ x: nx, y: ny });
-              if (x < pil.x || x > pil.x + pil.w) vx *= -1;
-              else vy *= -1;
-              bounces++;
-              bounced = true;
-            } else {
-              pts.push({ x: nx, y: ny });
-              return pts;
-            }
-            break;
-          }
-        }
-      }
-      x = bounced ? x + vx : nx;
-      y = bounced ? y + vy : ny;
-    }
-    pts.push({ x, y });
-    return pts;
-  }
-
-  private updateSniper() {
-    for (const p of this.players) {
-      if (!p.alive) continue;
-      if (p.throwCd > 0) p.throwCd--;
-      const inp = inputPlayers[p.index];
-      if ((inp.action || inp.releaseAction) && p.throwCd <= 0) {
-        p.throwCd = 32;
-        const speed = 18.5;
-        this.projectiles.push({
-          x: p.x + Math.cos(p.angle) * 24,
-          y: p.y - 6 + Math.sin(p.angle) * 24,
-          vx: Math.cos(p.angle) * speed,
-          vy: Math.sin(p.angle) * speed,
-          owner: p.index,
-          life: 130,
-          snow: false,
-          color: p.color,
-          radius: 4.8,
-          bounces: 2,
-          dmg: 55,
-          kind: 'sniper',
-        });
-        p.isAttacking = true;
-        p.attackTimer = 10;
-        p.vx -= Math.cos(p.angle) * 4.5;
-        p.vy -= Math.sin(p.angle) * 4.5;
-        this.spawnParticle(p.x + Math.cos(p.angle) * 24, p.y - 6 + Math.sin(p.angle) * 24, '#fbbf24', 8, 3.8, 12);
-        this.triggerShake(4, 6);
-        PartyAudio.play('shot');
-      }
-    }
-  }
-
-  private updateBlades() {
-    this.sawSpawnTimer++;
-    if (this.sawSpawnTimer === 60 * 11 && this.saws.length < 3) {
-      this.saws.push({
-        x: this.cw / 2,
-        y: 80,
-        vx: 4.6,
-        vy: 3.8,
-        r: 22,
-        rot: 0,
-      });
-      this.addPopup(this.cw / 2, this.ch * 0.25, '+1 MİŞAR!', '#f97316');
-      PartyAudio.play('portal');
-    }
-    if (this.sawSpawnTimer === 60 * 24 && this.saws.length < 4) {
-      this.saws.push({
-        x: this.cw / 2,
-        y: this.ch - 60,
-        vx: -4.8,
-        vy: -4.0,
-        r: 20,
-        rot: 0,
-      });
-      this.addPopup(this.cw / 2, this.ch * 0.25, 'SON SÜRƏT!', '#ef4444');
-      PartyAudio.play('portal');
-    }
-
-    // Spawn occasional Shield Orbs in center lanes
-    if (++this.coinSpawnTimer >= 175 && this.coins.length < 2) {
-      this.coinSpawnTimer = 0;
-      this.coins.push({
-        x: this.cw * (0.35 + Math.random() * 0.3),
-        y: 90 + Math.random() * (this.ch - 140),
-        radius: 12,
-        life: 360,
-        diamond: true,
-        kind: 'shield',
-      });
-    }
-    for (let i = this.coins.length - 1; i >= 0; i--) {
-      const c = this.coins[i];
-      if (--c.life <= 0) { this.coins.splice(i, 1); continue; }
-      for (const p of this.players) {
-        if (!p.alive) continue;
-        if (Math.hypot(p.x - c.x, p.y - c.y) < p.radius + c.radius) {
-          p.shield = true;
-          p.hp = Math.min(100, p.hp + 20);
-          this.addPopup(p.x, p.y - 24, 'QALXAN!', '#38bdf8');
-          this.spawnParticle(c.x, c.y, '#38bdf8', 12, 3.6, 18);
-          PartyAudio.play('coin');
-          this.coins.splice(i, 1);
-          break;
-        }
-      }
-    }
-
-    for (const s of this.saws) {
-      s.rot += 0.24;
-      s.vx *= 1.0004;
-      s.vy *= 1.0004;
-      const maxSp = 7.4;
-      const curSp = Math.hypot(s.vx, s.vy);
-      if (curSp > maxSp) {
-        s.vx = (s.vx / curSp) * maxSp;
-        s.vy = (s.vy / curSp) * maxSp;
-      }
-      s.x += s.vx;
-      s.y += s.vy;
-      if (s.x - s.r < 10) { s.x = 10 + s.r; s.vx = Math.abs(s.vx); this.spawnParticle(s.x - s.r, s.y, '#fbbf24', 5, 3, 12); }
-      if (s.x + s.r > this.cw - 10) { s.x = this.cw - 10 - s.r; s.vx = -Math.abs(s.vx); this.spawnParticle(s.x + s.r, s.y, '#fbbf24', 5, 3, 12); }
-      if (s.y - s.r < 48) { s.y = 48 + s.r; s.vy = Math.abs(s.vy); this.spawnParticle(s.x, s.y - s.r, '#fbbf24', 5, 3, 12); }
-      if (s.y + s.r > this.ch - 10) { s.y = this.ch - 10 - s.r; s.vy = -Math.abs(s.vy); this.spawnParticle(s.x, s.y + s.r, '#fbbf24', 5, 3, 12); }
-
-      // Bounce saws off cover pillars
-      for (const pil of this.pillars) {
-        const nearX = Math.max(pil.x, Math.min(pil.x + pil.w, s.x));
-        const nearY = Math.max(pil.y, Math.min(pil.y + pil.h, s.y));
-        const dx = s.x - nearX;
-        const dy = s.y - nearY;
-        const dist = Math.hypot(dx, dy);
-        if (dist < s.r && dist > 0.001) {
-          const nx = dx / dist;
-          const ny = dy / dist;
-          s.x += nx * (s.r - dist);
-          s.y += ny * (s.r - dist);
-          const dot = s.vx * nx + s.vy * ny;
-          if (dot < 0) {
-            s.vx -= 2 * dot * nx;
-            s.vy -= 2 * dot * ny;
-            this.spawnParticle(nearX, nearY, '#fbbf24', 6, 3, 12);
-          }
-        }
-      }
-
-      for (const p of this.players) {
-        if (!p.alive || p.invincible > 0) continue;
-        if (Math.hypot(p.x - s.x, p.y - s.y) < p.radius + s.r - 3) {
-          const ang = Math.atan2(p.y - s.y, p.x - s.x);
-          if (p.shield) {
-            p.shield = false;
-            p.invincible = 32;
-            p.vx += Math.cos(ang) * 9;
-            p.vy += Math.sin(ang) * 9;
-            this.spawnRing(p.x, p.y, 44, '#38bdf8', 18);
-            this.addPopup(p.x, p.y - 24, 'BLOKLANDI!', '#38bdf8');
-            PartyAudio.play('ice');
-          } else {
-            p.hp -= 50;
-            p.invincible = 32;
-            p.vx += Math.cos(ang) * 11;
-            p.vy += Math.sin(ang) * 11;
-            const rP = this.rigs[p.index];
-            if (rP) applyRagdollImpulse(rP, Math.cos(ang) * 11, Math.sin(ang) * 11 - 2, 14);
-            this.hitStop = Math.max(this.hitStop, 2);
-            this.spawnParticle(p.x, p.y, '#ef4444', 16, 5, 22);
-            this.triggerShake(7, 10);
-            PartyAudio.play('hit');
-            if (p.hp <= 0) this.killPlayer(p);
-          }
-        }
-      }
-    }
-  }
-
-  private updateSumo() {
-    this.gameTimer++;
-    if (this.gameTimer > 60 * 8) {
-      this.ringScale = Math.max(0.44, 1 - (this.gameTimer - 60 * 8) / (60 * 30));
-    }
-    if (++this.coinSpawnTimer >= 210 && this.coins.length < 1) {
-      this.coinSpawnTimer = 0;
-      const cx = this.cw / 2;
-      const cy = this.ch / 2;
-      const ringR = Math.min(this.cw, this.ch) * 0.2 * this.ringScale;
-      const a = Math.random() * Math.PI * 2;
-      this.coins.push({
-        x: cx + Math.cos(a) * ringR,
-        y: cy + Math.sin(a) * ringR,
-        radius: 13,
-        life: 320,
-        diamond: true,
-        kind: 'power',
-      });
-    }
-    for (let i = this.coins.length - 1; i >= 0; i--) {
-      const c = this.coins[i];
-      if (--c.life <= 0) { this.coins.splice(i, 1); continue; }
-      for (const p of this.players) {
-        if (!p.alive) continue;
-        if (Math.hypot(p.x - c.x, p.y - c.y) < p.radius + c.radius) {
-          p.shield = true;
-          this.spawnRing(p.x, p.y, 48, '#fbbf24', 18);
-          this.spawnParticle(c.x, c.y, '#fbbf24', 14, 4, 20);
-          this.addPopup(p.x, p.y - 26, 'GÜC ARTIŞI!', '#fbbf24');
-          PartyAudio.play('coin');
-          this.coins.splice(i, 1);
-          break;
-        }
-      }
-    }
-  }
-
-  private updateFutbol() {
-    const b = this.ball;
-    if (!b) return;
-    b.vx *= 0.982;
-    b.vy *= 0.982;
-    b.x += b.vx;
-    b.y += b.vy;
-    if (b.y - b.radius < 48) { b.y = 48 + b.radius; b.vy *= -0.84; }
-    if (b.y + b.radius > this.ch - 6) { b.y = this.ch - 6 - b.radius; b.vy *= -0.84; }
-
-    // Corner bumpers so the ball never stalls in corners
-    const corners: [number, number][] = [
-      [18, 52],
-      [this.cw - 18, 52],
-      [18, this.ch - 10],
-      [this.cw - 18, this.ch - 10],
-    ];
-    for (const [cx, cy] of corners) {
-      const dx = b.x - cx;
-      const dy = b.y - cy;
-      const dist = Math.hypot(dx, dy);
-      if (dist < b.radius + 26 && dist > 0.01) {
-        const nx = dx / dist;
-        const ny = dy / dist;
-        b.x = cx + nx * (b.radius + 26);
-        b.y = cy + ny * (b.radius + 26);
-        const dot = b.vx * nx + b.vy * ny;
-        if (dot < 0) {
-          b.vx = (b.vx - 2 * dot * nx) * 0.9 + nx * 1.4;
-          b.vy = (b.vy - 2 * dot * ny) * 0.9 + ny * 1.4;
-        }
-      }
-    }
-
-    const goalW = 20;
-    const goalH = this.ch * 0.34;
-    const goalTop = (this.ch + 44) / 2 - goalH / 2;
-    const goalBot = (this.ch + 44) / 2 + goalH / 2;
-
-    if (b.x - b.radius < goalW && b.y > goalTop && b.y < goalBot) {
-      this.players[1].score++;
-      if (this.players[3]) this.players[3].score++;
-      this.spawnParticle(b.x, b.y, '#ef4444', 32, 6.5, 38);
-      this.spawnRing(b.x, b.y, 70, '#ef4444', 24);
-      this.addPopup(this.cw / 2, this.ch / 2 - 40, 'GOL!', '#ef4444');
-      this.triggerShake(8, 13);
-      PartyAudio.play('coin');
-      b.x = this.cw / 2; b.y = (this.ch + 44) / 2; b.vx = 0; b.vy = 0;
-      if (this.players.some((p) => p.score - p.roundStart >= 3)) this.endRound();
-      return;
-    }
-    if (b.x + b.radius > this.cw - goalW && b.y > goalTop && b.y < goalBot) {
-      this.players[0].score++;
-      if (this.players[2]) this.players[2].score++;
-      this.spawnParticle(b.x, b.y, '#3b82f6', 32, 6.5, 38);
-      this.spawnRing(b.x, b.y, 70, '#3b82f6', 24);
-      this.addPopup(this.cw / 2, this.ch / 2 - 40, 'GOL!', '#3b82f6');
-      this.triggerShake(8, 13);
-      PartyAudio.play('coin');
-      b.x = this.cw / 2; b.y = (this.ch + 44) / 2; b.vx = 0; b.vy = 0;
-      if (this.players.some((p) => p.score - p.roundStart >= 3)) this.endRound();
       return;
     }
 
-    if (b.x - b.radius < goalW && (b.y < goalTop || b.y > goalBot)) { b.x = goalW + b.radius; b.vx *= -0.84; }
-    if (b.x + b.radius > this.cw - goalW && (b.y < goalTop || b.y > goalBot)) { b.x = this.cw - goalW - b.radius; b.vx *= -0.84; }
+    const deckY = this.ch - 56;
+    const elapsed = 1 - this.gameTimer / (this.gameTimerMax || 2700);
 
-    // Midfield speed boost pads + Action tackle lunge
-    const pads: [number, number][] = [
-      [this.cw * 0.5, (this.ch + 44) * 0.28],
-      [this.cw * 0.5, (this.ch + 44) * 0.76],
-    ];
-    for (const p of this.players) {
-      if (!p.alive) continue;
-      for (const [bx, by] of pads) {
-        if (Math.hypot(p.x - bx, p.y - by) < p.radius + 16 && !p.isAttacking) {
-          p.vx *= 1.45;
-          p.vy *= 1.45;
-          p.isAttacking = true;
-          p.attackTimer = 16;
-          this.spawnParticle(bx, by, '#38bdf8', 7, 3, 14);
-        }
+    // Spawn angled sky-piercing meteors (ignore mid-air platforms & blast all the way to deckY)
+    if (--this.meteorSpawnTimer <= 0) {
+      this.meteorSpawnTimer = Math.max(15, Math.round(40 - elapsed * 22));
+      const alive = this.players.filter((p) => p.alive);
+      let targetX = 56 + Math.random() * (this.cw - 112);
+      if (alive.length > 0 && Math.random() < 0.62) {
+        const tgt = alive[Math.floor(Math.random() * alive.length)];
+        targetX = Math.max(46, Math.min(this.cw - 46, tgt.x + (Math.random() - 0.5) * 76));
       }
-      const inp = inputPlayers[p.index];
-      if ((inp.action || inp.releaseAction) && p.dashCooldown <= 0) {
-        p.vx += Math.cos(p.angle) * 9.5;
-        p.vy += Math.sin(p.angle) * 9.5;
-        p.dashCooldown = 28;
-        p.isAttacking = true;
-        p.attackTimer = 14;
-        this.spawnParticle(p.x, p.y, p.color, 6, 3, 14);
-        PartyAudio.play('jump');
-      }
-      const dx = b.x - p.x;
-      const dy = b.y - p.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist < p.radius + b.radius) {
-        const ang = Math.atan2(dy, dx);
-        const superKick = inp.action || inp.releaseAction || p.isAttacking;
-        const kick = superKick ? 14.2 : 5.4;
-        b.vx = Math.cos(ang) * kick;
-        b.vy = Math.sin(ang) * kick;
-        b.lastKicker = p.index;
-        b.x = p.x + Math.cos(ang) * (p.radius + b.radius + 1);
-        b.y = p.y + Math.sin(ang) * (p.radius + b.radius + 1);
-        if (superKick) this.spawnRing(b.x, b.y, 38, p.color, 14);
-        this.spawnParticle(b.x, b.y, superKick ? '#fbbf24' : '#ffffff', 7, 3, 14);
-        PartyAudio.play('hit');
-      }
-    }
-  }
-
-  private updateRace() {
-    const bodyHw = 11;
-    const footHh = 22;
-    const headHh = 28;
-    let maxX = 0;
-
-    for (const obs of this.raceObstacles) {
-      if (obs.kind === 'saw' && obs.dy && obs.speed) {
-        obs.y = (obs.baseY ?? obs.y) + Math.sin(this.miniTick * obs.speed + obs.x * 0.015) * obs.dy;
-      }
-    }
-
-    for (const p of this.players) {
-      if (!p.alive) continue;
-      if (p.invincible > 0) p.invincible--;
-      if (p.dashCooldown > 0) p.dashCooldown--;
-      const inp = inputPlayers[p.index];
-      if ((inp.action || inp.releaseAction) && p.dashCooldown <= 0) {
-        p.dashCooldown = 44;
-        p.isAttacking = true;
-        p.attackTimer = 16;
-        p.leanVx -= 3.6;
-        this.spawnRing(p.x, p.y, 30, '#f59e0b', 11);
-        this.spawnParticle(p.x, p.y, '#fbbf24', 7, 3.2, 14);
-        PartyAudio.play('jump');
-      }
-
-      const targetVx = Math.abs(inp.x) > 0.1 ? inp.x * (Math.abs(inp.x) > 0.5 ? 5.65 : 3.6) : 0;
-      if (Math.abs(inp.x) > 0.1) {
-        p.angle = inp.x >= 0 ? 0 : Math.PI;
-      }
-
-      const prevRaceX = p.raceX;
-      p.vx = targetVx + (p.isAttacking ? Math.sign(targetVx || Math.cos(p.angle) || 1) * 2.6 : 0);
-      p.raceX = Math.max(24, p.raceX + p.vx);
-
-      for (const obs of this.raceObstacles) {
-        if (obs.kind === 'spring' || obs.kind === 'boost' || obs.kind === 'saw') continue;
-        if (p.y + footHh > obs.y + 4 && p.y - headHh < obs.y + obs.h - 2) {
-          if (p.raceX + bodyHw > obs.x && p.raceX - bodyHw < obs.x + obs.w) {
-            if (prevRaceX <= obs.x - bodyHw + 5) {
-              p.raceX = obs.x - bodyHw;
-            } else if (prevRaceX >= obs.x + obs.w + bodyHw - 5) {
-              p.raceX = obs.x + obs.w + bodyHw;
-            } else {
-              p.raceX = prevRaceX < obs.x + obs.w / 2 ? obs.x - bodyHw : obs.x + obs.w + bodyHw;
-            }
-          }
-        }
-      }
-
-      const wantJ = inp.jump;
-      if (wantJ && !p.jh) {
-        p.jumpBuf = 8;
-      } else if (!wantJ) {
-        p.jh = false;
-      }
-      if (p.jumpBuf > 0) p.jumpBuf--;
-
-      if (p.jumpBuf > 0 && (p.onGround || p.coyoteT > 0)) {
-        p.vy = -12.0;
-        p.onGround = false;
-        p.coyoteT = 0;
-        p.jumpBuf = 0;
-        p.jumpsLeft = 0;
-        p.jh = true;
-        p.highJ = inp.y < -0.8;
-        p.headVy += 2.6;
-        this.spawnParticle(p.x, p.y + footHh, '#e4e4e7', 5, 2.2, 12);
-        PartyAudio.play('jump');
-      }
-      if (inp.y >= -0.72) p.highJ = false;
-      if (p.vy < -2.8 && !wantJ && !p.highJ) p.vy *= 0.87;
-
-      const prevBottom = p.y + footHh;
-      const prevTop = p.y - headHh;
-      const prevOnGround = p.onGround;
-      const preLandVy = p.vy;
-      p.vy = Math.min(13.5, p.vy + 0.45 * (p.vy > 0 ? 1.12 : 1.0));
-      p.y += p.vy;
-      p.onGround = false;
-
-      for (const obs of this.raceObstacles) {
-        if (obs.kind === 'saw') continue;
-        if (p.raceX + bodyHw <= obs.x + 1 || p.raceX - bodyHw >= obs.x + obs.w - 1) continue;
-
-        if (obs.kind === 'spring') {
-          if (p.y + footHh >= obs.y && p.y - headHh <= obs.y + obs.h) {
-            p.y = obs.y - footHh;
-            p.vy = -14.6;
-            p.onGround = false;
-            p.coyoteT = 0;
-            p.jumpsLeft = 0;
-            p.headVy += 4;
-            this.spawnParticle(p.x, obs.y, '#4ade80', 10, 3.6, 18);
-            PartyAudio.play('jump');
-          }
-          continue;
-        }
-
-        if (obs.kind === 'boost') {
-          if (p.y + footHh >= obs.y - 4 && !p.isAttacking) {
-            p.isAttacking = true;
-            p.attackTimer = 20;
-            p.leanVx -= 3.2;
-            this.spawnParticle(p.x, p.y + footHh, '#fbbf24', 6, 2.8, 14);
-          }
-          continue;
-        }
-
-        if (p.vy >= 0 && prevBottom <= obs.y + 12 && p.y + footHh >= obs.y) {
-          p.y = obs.y - footHh;
-          p.vy = 0;
-          p.onGround = true;
-          p.coyoteT = 7;
-          p.jumpsLeft = 0;
-        } else if (p.vy < 0 && prevTop >= obs.y + obs.h - 10 && p.y - headHh <= obs.y + obs.h) {
-          p.y = obs.y + obs.h + headHh;
-          p.vy = 0.5;
-        }
-      }
-
-      if (!p.onGround) p.coyoteT = Math.max(0, p.coyoteT - 1);
-      if (p.onGround && !prevOnGround && preLandVy > 3.2) {
-        p.sq = Math.min(10, Math.round(preLandVy * 0.85));
-        p.headVy += Math.min(5, preLandVy * 0.42);
-      }
-
-      // Check buzzsaw collision or chasm fall -> checkpoint respawn on nearest safe concrete floor
-      let sawHit = false;
-      if (p.invincible <= 0) {
-        for (const obs of this.raceObstacles) {
-          if (obs.kind !== 'saw') continue;
-          const scx = obs.x + obs.w / 2;
-          const scy = obs.y + obs.h / 2;
-          const sr = obs.r ?? obs.w * 0.45;
-          if (Math.hypot(p.raceX - scx, p.y - scy) < bodyHw + sr - 4) {
-            sawHit = true;
-            break;
-          }
-        }
-      }
-
-      if (sawHit || p.y > this.ch + 28) {
-        let safeFloor = this.raceObstacles[0];
-        for (const obs of this.raceObstacles) {
-          if (obs.kind === 'floor' && obs.x <= p.raceX + 20) safeFloor = obs;
-        }
-        const respawnX = safeFloor
-          ? Math.max(safeFloor.x + 28, Math.min(safeFloor.x + safeFloor.w - 34, p.raceX - 48))
-          : Math.max(64, p.raceX - 80);
-        const respawnY = (safeFloor ? safeFloor.y : this.ch - 78) - footHh - 4;
-        this.spawnParticle(p.x, Math.min(this.ch - 20, p.y), sawHit ? '#f97316' : '#ef4444', 14, 4.2, 22);
-        p.raceX = respawnX;
-        p.y = respawnY;
-        p.vx = 0;
-        p.vy = 0;
-        p.onGround = true;
-        p.jumpsLeft = 0;
-        p.invincible = 65;
-        this.addPopup(p.raceX - this.raceOffset, Math.max(84, p.y - 26), sawHit ? 'MİŞAR!' : 'DİQQƏT!', '#fbbf24');
-        PartyAudio.play('hit');
-        this.triggerShake(4, 7);
-      }
-
-      if (p.attackTimer > 0 && --p.attackTimer <= 0) p.isAttacking = false;
-      if (Math.hypot(p.vx, p.vy) > 2.4) {
-        p.trail.push({ x: p.x, y: p.y, life: 8 });
-        if (p.trail.length > 6) p.trail.shift();
-      }
-      p.trail = p.trail.filter((tr) => --tr.life > 0);
-      this.updateMiniSprings(p, true);
-
-      if (p.raceX > maxX) maxX = p.raceX;
-    }
-
-    this.raceOffset = Math.max(0, maxX - this.cw * 0.36);
-    for (const p of this.players) {
-      p.x = p.raceX - this.raceOffset;
-    }
-
-    for (const p of this.players) {
-      if (p.alive && p.raceX >= this.raceFinishX) {
-        p.score++;
-        for (const col of ['#4ade80', '#38bdf8', '#fbbf24', '#f472b6']) {
-          this.spawnParticle(p.x, p.y - 20, col, 8, 5, 34);
-        }
-        this.addPopup(p.x, p.y - 34, 'FİNİŞ!', '#4ade80');
-        PartyAudio.play('coin');
-        this.endRound();
-        return;
-      }
-    }
-  }
-
-  private updateBomb() {
-    const b = this.ball;
-    if (!b) return;
-    if (b.noPick > 0) b.noPick--;
-
-    if (b.holder >= 0 && this.players[b.holder]?.alive) {
-      const h = this.players[b.holder];
-      b.x = h.x;
-      b.y = h.y - h.radius - 13;
-      b.fuse--;
-      if (h.throwCd > 0) h.throwCd--;
-      const inp = inputPlayers[h.index];
-      if ((inp.action || inp.releaseAction) && h.throwCd <= 0) {
-        h.throwCd = 24;
-        b.holder = -1;
-        b.lastKicker = h.index;
-        b.noPick = 24;
-        b.vx = Math.cos(h.angle) * 11.5;
-        b.vy = Math.sin(h.angle) * 11.5;
-        PartyAudio.play('shot');
-      } else if (b.fuse <= 0) {
-        this.explodeHotBomb(b.x, b.y);
-      } else if (b.noPick <= 0) {
-        // Close contact hand-off pass to bumped rival
-        for (const p of this.players) {
-          if (!p.alive || p.index === h.index) continue;
-          if (Math.hypot(p.x - h.x, p.y - h.y) < h.radius + p.radius + 4) {
-            b.holder = p.index;
-            b.lastKicker = h.index;
-            b.noPick = 26;
-            this.addPopup(p.x, p.y - 26, 'BOMBA KEÇDİ!', '#f97316');
-            this.spawnRing(p.x, p.y, 40, '#f97316', 14);
-            PartyAudio.play('hit');
-            break;
-          }
-        }
-      }
-    } else {
-      b.holder = -1;
-      b.vx *= 0.945;
-      b.vy *= 0.945;
-      b.x += b.vx;
-      b.y += b.vy;
-      if (b.x < 20 || b.x > this.cw - 20) { b.vx *= -0.82; b.x = Math.max(20, Math.min(this.cw - 20, b.x)); }
-      if (b.y < 52 || b.y > this.ch - 20) { b.vy *= -0.82; b.y = Math.max(52, Math.min(this.ch - 20, b.y)); }
-      for (const pil of this.pillars) {
-        const nearX = Math.max(pil.x, Math.min(pil.x + pil.w, b.x));
-        const nearY = Math.max(pil.y, Math.min(pil.y + pil.h, b.y));
-        const dx = b.x - nearX;
-        const dy = b.y - nearY;
-        const dist = Math.hypot(dx, dy);
-        if (dist < b.radius && dist > 0.001) {
-          const nx = dx / dist;
-          const ny = dy / dist;
-          b.x += nx * (b.radius - dist);
-          b.y += ny * (b.radius - dist);
-          const dot = b.vx * nx + b.vy * ny;
-          if (dot < 0) {
-            b.vx = (b.vx - 2 * dot * nx) * 0.85;
-            b.vy = (b.vy - 2 * dot * ny) * 0.85;
-          }
-        }
-      }
-      b.fuse--;
-      if (b.fuse <= 0) {
-        this.explodeHotBomb(b.x, b.y);
-        return;
-      }
-      for (const p of this.players) {
-        if (!p.alive) continue;
-        if (p.index === b.lastKicker && b.noPick > 0) continue;
-        if (Math.hypot(p.x - b.x, p.y - b.y) < p.radius + b.radius) {
-          b.holder = p.index;
-          b.lastKicker = p.index;
-          b.noPick = 22;
-          b.vx = 0;
-          b.vy = 0;
-          this.spawnParticle(p.x, p.y - 20, '#f97316', 7, 3, 14);
-          PartyAudio.play('hit');
-          break;
-        }
-      }
-    }
-  }
-
-  private explodeHotBomb(bx: number, by: number) {
-    PartyAudio.play('boom');
-    this.spawnParticle(bx, by, '#f97316', 34, 6.8, 34);
-    this.spawnParticle(bx, by, '#fbbf24', 20, 4.8, 28);
-    this.spawnRing(bx, by, 96, '#ef4444', 24);
-    this.triggerShake(11, 16);
-    for (const p of this.players) {
-      if (!p.alive) continue;
-      if (Math.hypot(p.x - bx, p.y - by) < 92) {
-        p.hp = 0;
-        this.killPlayer(p);
-      }
-    }
-    if (this.ball) {
-      const nextFuse = Math.max(4 * 60, (this.ball.maxFuse || 6 * 60) - 60);
-      this.ball.holder = -1;
-      this.ball.lastKicker = -1;
-      this.ball.fuse = nextFuse;
-      this.ball.maxFuse = nextFuse;
-      this.ball.x = this.cw / 2;
-      this.ball.y = this.ch / 2;
-      this.ball.vx = 0;
-      this.ball.vy = 0;
-    }
-  }
-
-  private updateLaser() {
-    this.gameTimer--;
-    const elapsed = (this.gameTimerMax - this.gameTimer) / 60;
-    if (--this.laserSpawnTimer <= 0) {
-      const interval = Math.max(36, Math.round(88 - elapsed * 1.35));
-      this.laserSpawnTimer = interval;
-      const mode = Math.floor(Math.random() * 5);
-      const cols = ['#ef4444', '#f43f5e', '#38bdf8', '#a855f7'];
-      const warnT = Math.max(34, 54 - Math.floor(elapsed * 0.6));
-      if (mode === 0) {
-        const yy = 66 + Math.random() * (this.ch - 96);
-        this.beams.push({ x1: 0, y1: yy, x2: this.cw, y2: yy, warn: warnT, active: 22, width: 11, color: cols[0] });
-      } else if (mode === 1) {
-        const xx = 42 + Math.random() * (this.cw - 84);
-        this.beams.push({ x1: xx, y1: 44, x2: xx, y2: this.ch, warn: warnT, active: 22, width: 11, color: cols[1] });
-      } else if (mode === 2) {
-        const flip = Math.random() < 0.5;
-        const off = (Math.random() - 0.5) * this.cw * 0.45;
-        this.beams.push({
-          x1: flip ? this.cw + off : off,
-          y1: 44,
-          x2: flip ? off : this.cw + off,
-          y2: this.ch,
-          warn: warnT,
-          active: 22,
-          width: 11,
-          color: cols[2],
-        });
-      } else if (mode === 3) {
-        // Double cross-X laser pattern!
-        const cx = 140 + Math.random() * (this.cw - 280);
-        const cy = 110 + Math.random() * (this.ch - 180);
-        this.beams.push({ x1: cx - 420, y1: cy - 320, x2: cx + 420, y2: cy + 320, warn: warnT + 10, active: 22, width: 10, color: cols[3] });
-        this.beams.push({ x1: cx + 420, y1: cy - 320, x2: cx - 420, y2: cy + 320, warn: warnT + 10, active: 22, width: 10, color: cols[3] });
-      } else {
-        // Twin-corridor pinch lasers
-        const cy = 96 + Math.random() * (this.ch - 210);
-        this.beams.push({ x1: 0, y1: cy - 42, x2: this.cw, y2: cy - 42, warn: warnT + 8, active: 22, width: 10, color: cols[0] });
-        this.beams.push({ x1: 0, y1: cy + 42, x2: this.cw, y2: cy + 42, warn: warnT + 8, active: 22, width: 10, color: cols[2] });
-      }
-    }
-
-    // Shield orb spawns
-    if (++this.coinSpawnTimer >= 165 && this.coins.length < 2) {
-      this.coinSpawnTimer = 0;
-      this.coins.push({
-        x: 64 + Math.random() * (this.cw - 128),
-        y: 80 + Math.random() * (this.ch - 120),
-        radius: 12,
-        life: 360,
-        diamond: true,
-        kind: 'shield',
+      const startX = Math.max(36, Math.min(this.cw - 36, targetX + (Math.random() - 0.5) * 140));
+      const isCluster = elapsed > 0.22 && Math.random() < 0.26;
+      const warnTicks = Math.max(26, Math.round(48 - elapsed * 16));
+      this.meteors.push({
+        x: startX,
+        y: -36,
+        vx: 0,
+        vy: 0,
+        r: isCluster ? 28 : 20 + Math.random() * 10,
+        warn: warnTicks,
+        maxWarn: warnTicks,
+        cluster: isCluster,
+        startX,
+        targetX,
       });
     }
-    for (let i = this.coins.length - 1; i >= 0; i--) {
-      const c = this.coins[i];
-      if (--c.life <= 0) { this.coins.splice(i, 1); continue; }
-      for (const p of this.players) {
-        if (!p.alive) continue;
-        if (Math.hypot(p.x - c.x, p.y - c.y) < p.radius + c.radius) {
-          p.shield = true;
-          p.hp = Math.min(100, p.hp + 20);
-          p.score++;
-          this.addPopup(p.x, p.y - 24, 'QALXAN!', '#38bdf8');
-          this.spawnParticle(c.x, c.y, '#38bdf8', 12, 3.6, 18);
-          PartyAudio.play('coin');
-          this.coins.splice(i, 1);
-          break;
+
+    // Spawn volcanic magma geysers erupting up through bridge cracks (anti-camping under platforms!)
+    if (--this.geyserSpawnTimer <= 0) {
+      this.geyserSpawnTimer = Math.max(46, Math.round(105 - elapsed * 48));
+      const alive = this.players.filter((p) => p.alive);
+      const count = elapsed > 0.45 ? 2 : 1;
+      for (let k = 0; k < count; k++) {
+        let gx = 72 + Math.random() * (this.cw - 144);
+        if (alive.length > 0 && k === 0 && Math.random() < 0.72) {
+          const tgt = alive[Math.floor(Math.random() * alive.length)];
+          gx = Math.max(58, Math.min(this.cw - 58, tgt.x + (Math.random() - 0.5) * 44));
         }
+        this.meteorGeysers.push({
+          x: gx,
+          warn: 48,
+          eruptT: 36,
+          h: 215,
+        });
       }
     }
 
-    for (let i = this.beams.length - 1; i >= 0; i--) {
-      const b = this.beams[i];
-      if (b.warn > 0) {
-        b.warn--;
-        if (b.warn === 0) {
-          this.triggerShake(4, 6);
-          PartyAudio.play('shot');
+    // Step volcanic geysers
+    for (let i = this.meteorGeysers.length - 1; i >= 0; i--) {
+      const g = this.meteorGeysers[i];
+      if (g.warn > 0) {
+        g.warn--;
+        if (g.warn % 6 === 0) {
+          this.spawnParticle(g.x + (Math.random() - 0.5) * 20, deckY - 3, '#fb923c', 2, 2.2, 12);
+        }
+        if (g.warn === 0) {
+          this.triggerShake(6, 9);
+          this.spawnParticle(g.x, deckY - 8, '#fde047', 14, 5.2, 18);
+          PartyAudio.play('boom');
         }
         continue;
       }
-      b.active--;
+      g.eruptT--;
+      if (this.miniTick % 2 === 0) {
+        this.spawnParticle(g.x + (Math.random() - 0.5) * 18, deckY - 16 - Math.random() * (g.h * 0.75), '#f97316', 2, 2.6, 14);
+      }
       for (const p of this.players) {
         if (!p.alive || p.invincible > 0) continue;
-        if (pointSegDist(p.x, p.y, b.x1, b.y1, b.x2, b.y2) < p.radius + b.width * 0.75) {
+        if (Math.abs(p.x - g.x) < 25 + p.radius * 0.35 && p.y > deckY - g.h && p.y < deckY + 12) {
+          const pushDir = p.x >= g.x ? 1 : -1;
           if (p.shield) {
             p.shield = false;
-            p.invincible = 34;
+            p.invincible = 30;
+            p.vx += pushDir * 6.5;
+            p.vy = -10.5;
             this.spawnRing(p.x, p.y, 44, '#38bdf8', 18);
-            this.addPopup(p.x, p.y - 24, 'BLOKLANDI!', '#38bdf8');
-            PartyAudio.play('ice');
+            this.addPopup(p.x, p.y - 30, 'QALXAN QORUDU!', '#38bdf8');
+            PartyAudio.play('iceCrack');
           } else {
-            p.hp -= 38;
-            p.invincible = 34;
-            const rP = this.rigs[p.index];
-            if (rP) applyRagdollImpulse(rP, (Math.random() - 0.5) * 9, -5.5, 12);
-            this.hitStop = Math.max(this.hitStop, 2);
-            this.spawnParticle(p.x, p.y, b.color, 16, 4.5, 20);
-            this.triggerShake(6, 10);
+            p.hp -= 24;
+            p.invincible = 28;
+            p.vx += pushDir * 7.8;
+            p.vy = -11.4;
+            const rPl = this.rigs[p.index];
+            if (rPl) applyRagdollImpulse(rPl, pushDir * 8, -8.5, 10);
+            this.addPopup(p.x, p.y - 28, '-24 GEYZER!', '#fb923c');
             PartyAudio.play('hit');
             if (p.hp <= 0) this.killPlayer(p);
           }
         }
       }
-      if (b.active <= 0) this.beams.splice(i, 1);
-    }
-
-    if (this.gameTimer <= 0) {
-      for (const p of this.players) if (p.alive) p.score++;
-      this.endRound();
-    }
-  }
-
-  private generateLavaPlats(targetMinY: number) {
-    const cw = this.cw;
-    let tier = this.plats.length;
-    while (this.highestPlatY > targetMinY) {
-      const gap = 66 + Math.random() * 16;
-      this.highestPlatY -= gap;
-      const y = this.highestPlatY;
-      const w = Math.max(114, 158 - Math.min(34, tier * 0.65));
-      const slot = tier % 3;
-      const moving = tier >= 2 && Math.random() < 0.42;
-      const isSpring = !moving && tier >= 2 && Math.random() < 0.24;
-      const isCrumble = !moving && !isSpring && tier >= 3 && Math.random() < 0.28;
-      const kind: 'stone' | 'spring' | 'crumble' = isSpring ? 'spring' : isCrumble ? 'crumble' : 'stone';
-      if (slot === 0) {
-        const x = 36 + Math.random() * Math.max(20, cw * 0.34 - w * 0.5);
-        this.plats.push({
-          x,
-          y,
-          w,
-          dx: moving ? (Math.random() < 0.5 ? 0.9 : -0.9) : 0,
-          minX: 24,
-          maxX: cw * 0.55,
-          kind,
-        });
-      } else if (slot === 1) {
-        const x = cw * 0.52 + Math.random() * Math.max(20, cw * 0.4 - w);
-        this.plats.push({
-          x: Math.min(cw - w - 24, x),
-          y,
-          w,
-          dx: moving ? (Math.random() < 0.5 ? -0.95 : 0.95) : 0,
-          minX: cw * 0.44,
-          maxX: cw - 24,
-          kind,
-        });
-      } else {
-        const x = cw * 0.32 + Math.random() * Math.max(15, cw * 0.32 - w * 0.5);
-        this.plats.push({
-          x,
-          y,
-          w: w + 12,
-          dx: moving ? 1.15 : 0,
-          minX: cw * 0.16,
-          maxX: cw * 0.84,
-          kind,
-        });
+      if (g.eruptT <= 0) {
+        this.meteorGeysers.splice(i, 1);
       }
-      tier++;
-    }
-  }
-
-  private updateLava() {
-    this.lavaTick++;
-    const alive = this.players.filter((p) => p.alive);
-    if (alive.length > 0) {
-      const minY = Math.min(...alive.map((p) => p.y));
-      const targetCam = Math.min(this.lavaCamY, minY - this.ch * 0.42);
-      this.lavaCamY += (targetCam - this.lavaCamY) * 0.12;
     }
 
-    for (const pl of this.plats) {
-      if (pl.kind === 'crumble' && pl.crumbleT !== undefined && pl.crumbleT > 0) {
-        pl.crumbleT--;
-        if (pl.crumbleT === 0) {
-          this.spawnParticle(pl.x + pl.w / 2, pl.y + 6, '#fb923c', 12, 3.6, 20);
-          PartyAudio.play('iceCrack');
+    // Shield & Medkit pickups
+    if (++this.coinSpawnTimer >= 245 && this.coins.length < 2) {
+      this.coinSpawnTimer = 0;
+      const kind = Math.random() < 0.5 ? 'shield' : 'medkit';
+      const solidPlats = this.mPlats.filter((mp) => !mp.spring);
+      const usePlat = solidPlats.length > 0 && Math.random() < 0.52;
+      const chosen = usePlat ? solidPlats[Math.floor(Math.random() * solidPlats.length)] : null;
+      const px = chosen ? chosen.x + 24 + Math.random() * Math.max(12, chosen.w - 48) : 110 + Math.random() * (this.cw - 220);
+      const py = chosen ? chosen.y : deckY;
+      this.coins.push({
+        x: Math.max(60, Math.min(this.cw - 60, px)),
+        y: py - 16,
+        radius: 13,
+        life: 540,
+        diamond: kind === 'shield',
+        kind,
+      });
+    }
+
+    for (let i = this.coins.length - 1; i >= 0; i--) {
+      const c = this.coins[i];
+      if (--c.life <= 0) { this.coins.splice(i, 1); continue; }
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        if (Math.hypot(p.x - c.x, p.y - c.y) < p.radius + c.radius + 5) {
+          if (c.kind === 'shield') {
+            p.shield = true;
+            this.addPopup(p.x, p.y - 28, 'ENERJİ QALXANI!', '#38bdf8');
+          } else {
+            p.hp = Math.min(100, p.hp + 35);
+            this.addPopup(p.x, p.y - 28, '+35 CAN', '#4ade80');
+          }
+          this.spawnParticle(c.x, c.y, c.kind === 'shield' ? '#38bdf8' : '#4ade80', 14, 4, 20);
+          PartyAudio.play('coin');
+          this.coins.splice(i, 1);
+          break;
         }
       }
     }
 
-    this.generateLavaPlats(this.lavaCamY - 280);
-    this.plats = this.plats.filter((pl) => pl.y < this.lavaY + 140 && (pl.crumbleT === undefined || pl.crumbleT > 0));
+    // Step active meteors (piercing through elevated catwalks down to deckY!)
+    for (let i = this.meteors.length - 1; i >= 0; i--) {
+      const m = this.meteors[i];
+      if (m.warn > 0) {
+        m.warn--;
+        if (m.warn === 0) {
+          const dy = deckY + 32;
+          const dx = m.targetX - m.startX;
+          const dist = Math.hypot(dx, dy) || 1;
+          const spd = 17.5 + elapsed * 4.5;
+          m.x = m.startX;
+          m.y = -32;
+          m.vx = (dx / dist) * spd;
+          m.vy = (dy / dist) * spd;
+        }
+        continue;
+      }
 
-    if (this.lavaTick > 70) {
-      this.lavaY -= 0.38;
-      const maxFloor = this.lavaCamY + this.ch + 120;
-      if (this.lavaY > maxFloor) this.lavaY = maxFloor;
+      m.x += m.vx;
+      m.y += m.vy;
+      if (m.vy > 0) m.vy = Math.min(25, m.vy + 0.35);
+      else m.vy = Math.min(22, m.vy + 0.58);
+
+      if (this.miniTick % 2 === 0) {
+        this.spawnParticle(m.x, m.y - m.r * 0.35, m.cluster ? '#fb923c' : '#fde047', 2, 1.8, 12);
+      }
+
+      // Direct mid-air / platform-perch meteor collision so elevated roofs offer ZERO free shelter!
+      for (const p of this.players) {
+        if (!p.alive || p.invincible > 0) continue;
+        if (Math.hypot(p.x - m.x, p.y - m.y) < m.r * 0.92 + p.radius * 0.65) {
+          const ang = Math.atan2(p.y - m.y - 8, p.x - m.x);
+          if (p.shield) {
+            p.shield = false;
+            p.invincible = 32;
+            p.vx += Math.cos(ang) * 8;
+            p.vy = -5.5;
+            this.spawnRing(p.x, p.y, 44, '#38bdf8', 18);
+            this.addPopup(p.x, p.y - 30, 'QALXAN QORUDU!', '#38bdf8');
+            PartyAudio.play('iceCrack');
+          } else {
+            const dmg = m.r >= 25 ? 42 : 30;
+            p.hp -= dmg;
+            p.invincible = 28;
+            p.vx += Math.cos(ang) * 9.5;
+            p.vy = Math.min(p.vy, -6.2);
+            const rPl = this.rigs[p.index];
+            if (rPl) applyRagdollImpulse(rPl, Math.cos(ang) * 9.5, -5.5, 11);
+            this.spawnParticle(p.x, p.y, '#fb923c', 12, 4.5, 18);
+            this.addPopup(p.x, p.y - 28, `-${dmg}`, '#ef4444');
+            PartyAudio.play('hit');
+            if (p.hp <= 0) this.killPlayer(p);
+          }
+        }
+      }
+
+      // Main bridge deck impact
+      if (m.y + m.r * 0.45 >= deckY) {
+        const impactX = Math.max(24, Math.min(this.cw - 24, m.x));
+        const blastR = m.r * 2.35;
+        this.spawnRing(impactX, deckY, blastR * 1.15, m.cluster ? '#f97316' : '#fbbf24', 22);
+        this.spawnParticle(impactX, deckY - 6, '#f97316', 24, 6.2, 26);
+        this.spawnParticle(impactX, deckY - 6, '#fde047', 14, 4.4, 20);
+        this.triggerShake(m.cluster ? 11 : 7, 12);
+        PartyAudio.play('boom');
+
+        this.meteorCraters.push({ x: impactX, y: deckY, r: m.r * 1.2, life: 210, maxLife: 210 });
+
+        if (m.cluster) {
+          for (const dir of [-1, 1]) {
+            this.meteors.push({
+              x: impactX + dir * 16,
+              y: deckY - 18,
+              vx: dir * (4.4 + Math.random() * 1.8),
+              vy: -8.2,
+              r: 13,
+              warn: 0,
+              maxWarn: 1,
+              cluster: false,
+              startX: impactX,
+              targetX: impactX + dir * 95,
+            });
+          }
+        }
+
+        for (const p of this.players) {
+          if (!p.alive || p.invincible > 0) continue;
+          const dist = Math.hypot(p.x - impactX, p.y - deckY);
+          if (dist < blastR + p.radius * 0.45) {
+            const ang = Math.atan2(p.y - deckY - 12, p.x - impactX);
+            if (p.shield) {
+              p.shield = false;
+              p.invincible = 32;
+              p.vx += Math.cos(ang) * 7.5;
+              p.vy = -5.5;
+              this.spawnRing(p.x, p.y, 44, '#38bdf8', 18);
+              this.addPopup(p.x, p.y - 30, 'QALXAN QORUDU!', '#38bdf8');
+              PartyAudio.play('iceCrack');
+            } else {
+              const dmg = m.r >= 25 ? 46 : m.r <= 15 ? 24 : 34;
+              p.hp -= dmg;
+              p.invincible = 28;
+              p.vx += Math.cos(ang) * 9.5;
+              p.vy = Math.min(p.vy, -6.4);
+              const rPl = this.rigs[p.index];
+              if (rPl) applyRagdollImpulse(rPl, Math.cos(ang) * 9.5, -5.5, 11);
+              this.addPopup(p.x, p.y - 28, `-${dmg}`, '#ef4444');
+              if (p.hp <= 0) this.killPlayer(p);
+            }
+          }
+        }
+        this.meteors.splice(i, 1);
+      }
     }
 
-    if (this.lavaTick % 5 === 0) {
-      this.particles.push({
-        x: Math.random() * this.cw,
-        y: this.lavaY + 4,
-        vx: (Math.random() - 0.5) * 1.6,
-        vy: -1.8 - Math.random() * 2.2,
-        life: 24,
-        maxLife: 24,
-        color: Math.random() < 0.5 ? '#fde047' : '#f97316',
-        radius: 2 + Math.random() * 2.5,
-      });
+    for (let i = this.meteorCraters.length - 1; i >= 0; i--) {
+      if (--this.meteorCraters[i].life <= 0) this.meteorCraters.splice(i, 1);
+    }
+  }
+
+  private updateInferno() {
+    this.gameTimer++;
+
+    // Rising molten lava floor after brief 2s grace
+    if (this.gameTimer > 120 && this.infLavaY > 250) {
+      const riseSpeed = Math.min(0.68, 0.40 + (this.gameTimer / 3600) * 0.25);
+      this.infLavaY -= riseSpeed;
     }
 
+    // Falling molten metal slag droplets from ceiling chutes
+    if (--this.infSlagTimer <= 0) {
+      this.infSlagTimer = Math.max(28, Math.round(72 - Math.min(40, this.gameTimer / 45)));
+      const alive = this.players.filter((p) => p.alive);
+      let sx = 64 + Math.random() * (this.cw - 128);
+      if (alive.length > 0 && Math.random() < 0.55) {
+        const tgt = alive[Math.floor(Math.random() * alive.length)];
+        sx = Math.max(52, Math.min(this.cw - 52, tgt.x + (Math.random() - 0.5) * 90));
+      }
+      const sy = Math.max(48, this.infCamY - this.ch * 0.48);
+      this.infSlags.push({ x: sx, y: sy, vy: 0, r: 10 + Math.random() * 4, warn: 36 });
+    }
+
+    for (let i = this.infSlags.length - 1; i >= 0; i--) {
+      const s = this.infSlags[i];
+      if (s.warn > 0) {
+        s.warn--;
+        continue;
+      }
+      s.vy = Math.min(11.5, s.vy + 0.34);
+      s.y += s.vy;
+      if (this.miniTick % 3 === 0) {
+        this.spawnParticle(s.x, s.y - 4, '#fb923c', 1, 1.4, 10);
+      }
+      let hit = false;
+      for (const p of this.players) {
+        if (!p.alive || p.invincible > 0) continue;
+        if (Math.hypot(p.x - s.x, p.y - s.y) < s.r + p.radius * 0.75) {
+          if (p.shield) {
+            p.shield = false;
+            p.invincible = 30;
+            this.spawnRing(p.x, p.y, 40, '#38bdf8', 16);
+            this.addPopup(p.x, p.y - 28, 'QALXAN QORUDU!', '#38bdf8');
+            PartyAudio.play('iceCrack');
+          } else {
+            p.hp -= 22;
+            p.invincible = 26;
+            p.vy = -4.2;
+            this.addPopup(p.x, p.y - 26, '-22', '#f97316');
+            PartyAudio.play('hit');
+            if (p.hp <= 0) this.killPlayer(p);
+          }
+          hit = true;
+          break;
+        }
+      }
+      if (hit || s.y >= this.infLavaY) {
+        this.spawnParticle(s.x, Math.min(s.y, this.infLavaY), '#fde047', 6, 3, 14);
+        this.infSlags.splice(i, 1);
+      }
+    }
+
+    // Pickups on foundry catwalks
+    if (++this.coinSpawnTimer >= 260 && this.coins.length < 3) {
+      this.coinSpawnTimer = 0;
+      const validPlats = this.mPlats.filter((mp) => !mp.spring && mp.y < this.infLavaY - 90 && mp.y > 210);
+      if (validPlats.length > 0) {
+        const chosen = validPlats[Math.floor(Math.random() * validPlats.length)];
+        const kind = Math.random() < 0.55 ? 'shield' : 'medkit';
+        this.coins.push({
+          x: chosen.x + 22 + Math.random() * Math.max(12, chosen.w - 44),
+          y: chosen.y - 16,
+          radius: 13,
+          life: 620,
+          diamond: kind === 'shield',
+          kind,
+        });
+      }
+    }
+
+    for (let i = this.coins.length - 1; i >= 0; i--) {
+      const c = this.coins[i];
+      if (--c.life <= 0 || c.y > this.infLavaY) { this.coins.splice(i, 1); continue; }
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        if (Math.hypot(p.x - c.x, p.y - c.y) < p.radius + c.radius + 5) {
+          if (c.kind === 'shield') {
+            p.shield = true;
+            this.addPopup(p.x, p.y - 28, 'ENERJİ QALXANI!', '#38bdf8');
+          } else {
+            p.hp = Math.min(100, p.hp + 35);
+            this.addPopup(p.x, p.y - 28, '+35 CAN', '#4ade80');
+          }
+          this.spawnParticle(c.x, c.y, c.kind === 'shield' ? '#38bdf8' : '#4ade80', 14, 4, 20);
+          PartyAudio.play('coin');
+          this.coins.splice(i, 1);
+          break;
+        }
+      }
+    }
+
+    // Lava collision & Summit Escape check
     for (const p of this.players) {
       if (!p.alive) continue;
-      if (p.y + p.radius * 0.6 > this.lavaY || p.y > this.lavaCamY + this.ch + 45) {
-        this.spawnParticle(p.x, Math.min(p.y, this.lavaY), '#f97316', 18, 5, 26);
+      if (p.onGround && p.y <= 185 && Math.abs(p.x - this.cw * 0.5) <= 130) {
+        p.score++;
+        this.spawnRing(p.x, p.y, 110, '#4ade80', 26);
+        this.spawnParticle(p.x, p.y, '#fde047', 28, 6.2, 30);
+        this.addPopup(p.x, p.y - 38, 'ZİRVƏYƏ ÇATDI!', '#4ade80');
+        PartyAudio.play('portal');
+        this.endRound();
+        return;
+      }
+      if (p.y + 18 >= this.infLavaY) {
+        if (p.shield) {
+          p.shield = false;
+          p.invincible = 42;
+          p.y = this.infLavaY - 24;
+          p.vy = -16.8;
+          this.spawnRing(p.x, p.y, 56, '#38bdf8', 20);
+          this.spawnParticle(p.x, p.y, '#38bdf8', 16, 4.5, 22);
+          this.addPopup(p.x, p.y - 30, 'QALXAN XİLAS ETDİ!', '#38bdf8');
+          PartyAudio.play('jump');
+        } else {
+          this.spawnRing(p.x, this.infLavaY, 64, '#f97316', 22);
+          this.spawnParticle(p.x, this.infLavaY, '#fde047', 24, 5.8, 28);
+          this.addPopup(p.x, this.infLavaY - 28, 'LAVADA YANDI!', '#ef4444');
+          PartyAudio.play('boom');
+          this.killPlayer(p);
+        }
+      }
+    }
+  }
+
+  private updateStorm() {
+    if (this.gameTimer > 0) this.gameTimer--;
+    if (this.gameTimer <= 0) {
+      for (const p of this.players) {
+        if (p.alive) p.score++;
+      }
+      this.endRound();
+      return;
+    }
+
+    if (this.stormFlash > 0) this.stormFlash--;
+
+    const cw = this.cw;
+    const ch = this.ch;
+    const shipL = cw * 0.10;
+    const shipW = cw * 0.80;
+    const deckY = ch - 94;
+    const elapsed = 1 - this.gameTimer / (this.gameTimerMax || 2700);
+
+    // Sky-to-sea Thunderbolts
+    if (--this.stormBoltTimer <= 0) {
+      this.stormBoltTimer = Math.max(24, Math.round(52 - elapsed * 24));
+      const alive = this.players.filter((p) => p.alive);
+      let bx = shipL + 36 + Math.random() * (shipW - 72);
+      if (alive.length > 0 && Math.random() < 0.6) {
+        const tgt = alive[Math.floor(Math.random() * alive.length)];
+        bx = Math.max(shipL + 24, Math.min(shipL + shipW - 24, tgt.x + (Math.random() - 0.5) * 60));
+      }
+      this.stormBolts.push({ x: bx, warn: Math.max(28, Math.round(46 - elapsed * 14)), flash: 18, r: 28 });
+    }
+
+    for (let i = this.stormBolts.length - 1; i >= 0; i--) {
+      const b = this.stormBolts[i];
+      if (b.warn > 0) {
+        b.warn--;
+        if (b.warn === 0) {
+          this.stormFlash = Math.max(this.stormFlash, 10);
+          this.triggerShake(8, 10);
+          this.spawnRing(b.x, deckY, 64, '#38bdf8', 18);
+          this.spawnParticle(b.x, deckY - 8, '#e0f2fe', 18, 5.5, 22);
+          PartyAudio.play('boom');
+          for (const p of this.players) {
+            if (!p.alive || p.invincible > 0) continue;
+            if (Math.abs(p.x - b.x) < b.r + p.radius * 0.5) {
+              const pushDir = p.x >= b.x ? 1 : -1;
+              if (p.shield) {
+                p.shield = false;
+                p.invincible = 30;
+                p.vx += pushDir * 7;
+                p.vy = -5.5;
+                this.spawnRing(p.x, p.y, 44, '#38bdf8', 18);
+                this.addPopup(p.x, p.y - 30, 'QALXAN QORUDU!', '#38bdf8');
+                PartyAudio.play('iceCrack');
+              } else {
+                p.hp -= 34;
+                p.invincible = 28;
+                p.vx += pushDir * 9.5;
+                p.vy = Math.min(p.vy, -6.5);
+                const rPl = this.rigs[p.index];
+                if (rPl) applyRagdollImpulse(rPl, pushDir * 9, -6, 11);
+                this.addPopup(p.x, p.y - 28, '-34 ŞİMŞƏK!', '#38bdf8');
+                if (p.hp <= 0) this.killPlayer(p);
+              }
+            }
+          }
+        }
+        continue;
+      }
+      if (--b.flash <= 0) this.stormBolts.splice(i, 1);
+    }
+
+    // Rogue Ocean Waves sweeping across the ship deck
+    if (!this.stormWave) {
+      if (--this.stormWaveTimer <= 0) {
+        this.stormWaveTimer = Math.max(150, Math.round(235 - elapsed * 65));
+        const side: -1 | 1 = Math.random() < 0.5 ? -1 : 1;
+        this.stormWave = {
+          side,
+          warn: 56,
+          active: 58,
+          x: side === -1 ? -40 : cw + 40,
+        };
+      }
+    } else {
+      const wv = this.stormWave;
+      if (wv.warn > 0) {
+        wv.warn--;
+      } else if (wv.active > 0) {
+        wv.active--;
+        wv.x += (wv.side === -1 ? 1 : -1) * (cw / 52);
+        if (this.miniTick % 2 === 0) {
+          this.spawnParticle(wv.x, deckY - 12 - Math.random() * 48, '#bae6fd', 3, 3.6, 16);
+        }
+        for (const p of this.players) {
+          if (!p.alive) continue;
+          if (Math.abs(p.x - wv.x) < 48 && p.y > deckY - 78 && p.y < deckY + 12) {
+            const push = wv.side === -1 ? 1 : -1;
+            p.vx += push * 1.45;
+            p.vy = Math.min(p.vy, -3.6);
+            if (p.invincible <= 0 && !p.shield) {
+              p.hp -= 12;
+              p.invincible = 24;
+              this.addPopup(p.x, p.y - 26, 'DALĞA!', '#38bdf8');
+              if (p.hp <= 0) this.killPlayer(p);
+            }
+          }
+        }
+      } else {
+        this.stormWave = null;
+      }
+    }
+
+    // Shield & Medkit drops on ship
+    if (++this.coinSpawnTimer >= 250 && this.coins.length < 2) {
+      this.coinSpawnTimer = 0;
+      const solidPlats = this.mPlats.filter((mp) => !mp.spring);
+      const chosen = solidPlats[Math.floor(Math.random() * solidPlats.length)];
+      if (chosen) {
+        const kind = Math.random() < 0.5 ? 'shield' : 'medkit';
+        this.coins.push({
+          x: chosen.x + 28 + Math.random() * Math.max(12, chosen.w - 56),
+          y: chosen.y - 16,
+          radius: 13,
+          life: 540,
+          diamond: kind === 'shield',
+          kind,
+        });
+      }
+    }
+
+    for (let i = this.coins.length - 1; i >= 0; i--) {
+      const c = this.coins[i];
+      if (--c.life <= 0) { this.coins.splice(i, 1); continue; }
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        if (Math.hypot(p.x - c.x, p.y - c.y) < p.radius + c.radius + 5) {
+          if (c.kind === 'shield') {
+            p.shield = true;
+            this.addPopup(p.x, p.y - 28, 'ENERJİ QALXANI!', '#38bdf8');
+          } else {
+            p.hp = Math.min(100, p.hp + 35);
+            this.addPopup(p.x, p.y - 28, '+35 CAN', '#4ade80');
+          }
+          this.spawnParticle(c.x, c.y, c.kind === 'shield' ? '#38bdf8' : '#4ade80', 14, 4, 20);
+          PartyAudio.play('coin');
+          this.coins.splice(i, 1);
+          break;
+        }
+      }
+    }
+
+    // Ocean fall check outside ship deck
+    for (const p of this.players) {
+      if (!p.alive) continue;
+      if (p.y > ch - 34) {
+        this.spawnRing(p.x, ch - 30, 56, '#38bdf8', 20);
+        this.spawnParticle(p.x, ch - 30, '#bae6fd', 22, 4.8, 26);
+        this.addPopup(p.x, ch - 46, 'OKEANA DÜŞDÜ!', '#38bdf8');
         PartyAudio.play('boom');
         this.killPlayer(p);
+      }
+    }
+  }
+
+  private updateAvalanche() {
+    this.gameTimer++;
+    const alive = this.players.filter((p) => p.alive);
+
+    // Wait briefly at start so players read the first gap, then descend smoothly from top to bottom
+    if (this.gameTimer > 70) {
+      let avaSpeed = Math.min(1.62, 1.05 + this.gameTimer * 0.00038);
+      if (alive.length > 0) {
+        const highestPlayerY = Math.min(...alive.map((p) => p.y));
+        const gapDist = highestPlayerY - this.avaY;
+        if (gapDist > 360) {
+          avaSpeed = Math.max(avaSpeed, Math.min(2.45, (gapDist - 360) * 0.032));
+        }
+      }
+      this.avaY = Math.min(this.avaWorldH - 135, this.avaY + avaSpeed);
+    }
+
+    // Subtle icy tremor + falling snow puffs ahead of the avalanche wall
+    if (this.gameTimer > 70 && this.miniTick % 4 === 0) {
+      this.spawnParticle(
+        34 + Math.random() * (this.cw - 68),
+        this.avaY + 4 + Math.random() * 14,
+        Math.random() < 0.5 ? '#ffffff' : '#bae6fd',
+        1,
+        2.4,
+        22
+      );
+    }
+
+    // Spawn energy shields on snow floors ahead of the avalanche
+    if (++this.coinSpawnTimer >= 220 && this.coins.length < 3) {
+      this.coinSpawnTimer = 0;
+      const validPlats = this.mPlats.filter(
+        (mp) => mp.kind === 'snow' && mp.w >= 72 && mp.y > this.avaY + 130 && mp.y < this.avaWorldH - 190
+      );
+      if (validPlats.length > 0) {
+        const chosen = validPlats[Math.floor(Math.random() * validPlats.length)];
+        const kind = Math.random() < 0.72 ? 'shield' : 'medkit';
+        this.coins.push({
+          x: chosen.x + 24 + Math.random() * Math.max(12, chosen.w - 48),
+          y: chosen.y - 16,
+          radius: 13,
+          life: 640,
+          diamond: kind === 'shield',
+          kind,
+        });
+      }
+    }
+
+    for (let i = this.coins.length - 1; i >= 0; i--) {
+      const c = this.coins[i];
+      if (--c.life <= 0 || c.y <= this.avaY) {
+        this.coins.splice(i, 1);
+        continue;
+      }
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        if (Math.hypot(p.x - c.x, p.y - c.y) < p.radius + c.radius + 5) {
+          if (c.kind === 'shield') {
+            p.shield = true;
+            this.addPopup(p.x, p.y - 28, 'BUZ QALXANI!', '#38bdf8');
+          } else {
+            p.hp = Math.min(100, p.hp + 35);
+            this.addPopup(p.x, p.y - 28, '+35 CAN', '#4ade80');
+          }
+          this.spawnParticle(c.x, c.y, c.kind === 'shield' ? '#38bdf8' : '#4ade80', 14, 4, 20);
+          PartyAudio.play('coin');
+          this.coins.splice(i, 1);
+          break;
+        }
+      }
+    }
+
+    // Rescue Base arrival & Avalanche engulf check
+    const campSurfaceY = this.avaWorldH - 140;
+    for (const p of this.players) {
+      if (!p.alive) continue;
+      if (p.onGround && p.y >= campSurfaceY - 26) {
+        p.score++;
+        this.spawnRing(p.x, p.y, 120, '#4ade80', 26);
+        this.spawnParticle(p.x, p.y, '#fde047', 30, 6.4, 30);
+        this.addPopup(p.x, p.y - 38, 'XİLAS OLDU!', '#4ade80');
+        PartyAudio.play('portal');
+        this.endRound();
+        return;
+      }
+      if (this.gameTimer > 60 && p.y - 10 <= this.avaY) {
+        if (p.shield) {
+          p.shield = false;
+          p.invincible = 40;
+          p.y = Math.min(campSurfaceY - 30, this.avaY + 42);
+          p.vy = 7.4;
+          this.spawnRing(p.x, p.y, 56, '#38bdf8', 20);
+          this.spawnParticle(p.x, p.y, '#e0f2fe', 18, 4.6, 22);
+          this.addPopup(p.x, p.y + 28, 'QALXAN QORUDU!', '#38bdf8');
+          PartyAudio.play('iceCrack');
+        } else {
+          this.spawnRing(p.x, this.avaY + 8, 64, '#bae6fd', 22);
+          this.spawnParticle(p.x, this.avaY + 8, '#ffffff', 26, 5.8, 28);
+          this.addPopup(p.x, this.avaY + 34, 'QAR ÇIĞINDA QALDI!', '#38bdf8');
+          PartyAudio.play('boom');
+          this.killPlayer(p);
+        }
       }
     }
   }
@@ -3435,7 +3138,6 @@ export class MinigameEngine {
         c.kind === 'medkit' || c.kind === 'repair' ? '#4ade80' :
         c.kind === 'shotgun' || c.kind === 'power' ? '#fbbf24' :
         c.kind === 'grenade' ? '#f97316' :
-        c.kind === 'paintbomb' ? '#f472b6' :
         '#38bdf8';
       ctx.shadowColor = col;
       ctx.shadowBlur = 16;
@@ -3463,7 +3165,7 @@ export class MinigameEngine {
           c.kind === 'repair' ? '✚' :
           c.kind === 'shotgun' ? '3X' :
           c.kind === 'rapid' ? '⚡' :
-          c.kind === 'power' || c.kind === 'paintbomb' ? '★' :
+          c.kind === 'power' ? '★' :
           '◈';
         ctx.fillText(label, 0, 0.5);
       }
@@ -3471,62 +3173,118 @@ export class MinigameEngine {
     }
   }
 
-  private drawPillars(ctx: CanvasRenderingContext2D, accent: string, style: 'tomb' | 'cover' | 'dojo') {
-    for (const pil of this.pillars) {
+  private drawStyledSidePlats(ctx: CanvasRenderingContext2D, accent: string) {
+    for (const mp of this.mPlats) {
       ctx.save();
-      ctx.fillStyle = 'rgba(0,0,0,0.48)';
-      roundRectPath(ctx, pil.x + 4, pil.y + 6, pil.w, pil.h, 6);
-      ctx.fill();
-
-      if (style === 'dojo') {
-        // Ornate Japanese crimson-lacquer wooden dojo column with gold hardware bands
-        const pg = ctx.createLinearGradient(pil.x, pil.y, pil.x + pil.w, pil.y + pil.h);
-        pg.addColorStop(0, '#7f1d1d');
-        pg.addColorStop(0.5, '#450a0a');
-        pg.addColorStop(1, '#1f0608');
-        ctx.fillStyle = pg;
-        roundRectPath(ctx, pil.x, pil.y, pil.w, pil.h, 7);
+      if (mp.spring) {
+        ctx.fillStyle = '#14532d';
+        roundRectPath(ctx, mp.x, mp.y + 4, mp.w, mp.h - 4, 3);
         ctx.fill();
-
-        ctx.strokeStyle = '#fbbf24';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // Gold ornamental inner square + center crest
-        ctx.strokeStyle = 'rgba(253,224,71,0.45)';
-        ctx.lineWidth = 1.4;
-        ctx.strokeRect(pil.x + 6, pil.y + 6, pil.w - 12, pil.h - 12);
-        ctx.fillStyle = '#f59e0b';
+        ctx.fillStyle = '#4ade80';
+        roundRectPath(ctx, mp.x + 2, mp.y, mp.w - 4, 6, 3);
+        ctx.fill();
+        ctx.strokeStyle = '#86efac';
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 4.2, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(mp.x + 12, mp.y + mp.h - 2);
+        ctx.lineTo(mp.x + mp.w * 0.5, mp.y + 6);
+        ctx.lineTo(mp.x + mp.w - 12, mp.y + mp.h - 2);
+        ctx.stroke();
         ctx.restore();
         continue;
       }
 
-      const pg = ctx.createLinearGradient(pil.x, pil.y, pil.x, pil.y + pil.h);
-      pg.addColorStop(0, '#3f3f46');
-      pg.addColorStop(1, '#18181b');
-      ctx.fillStyle = pg;
-      roundRectPath(ctx, pil.x, pil.y, pil.w, pil.h, 6);
-      ctx.fill();
-
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      if (style === 'tomb') {
-        ctx.strokeStyle = 'rgba(74,222,128,0.28)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(pil.x + pil.w / 2, pil.y + 10);
-        ctx.lineTo(pil.x + pil.w / 2, pil.y + pil.h - 10);
-        ctx.moveTo(pil.x + 12, pil.y + pil.h * 0.42);
-        ctx.lineTo(pil.x + pil.w - 12, pil.y + pil.h * 0.42);
-        ctx.stroke();
-      } else {
+      if (mp.kind === 'container') {
+        const col = mp.color || '#1e3a5f';
+        ctx.fillStyle = col;
+        roundRectPath(ctx, mp.x, mp.y, mp.w, mp.h, 4);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        for (let rx = mp.x + 10; rx < mp.x + mp.w - 8; rx += 14) {
+          ctx.fillRect(rx, mp.y + 6, 5, mp.h - 12);
+        }
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+        ctx.lineWidth = 1.6;
+        ctx.strokeRect(mp.x + 1, mp.y + 1, mp.w - 2, mp.h - 2);
         ctx.fillStyle = accent;
-        ctx.fillRect(pil.x + 4, pil.y + 4, pil.w - 8, 4);
+        ctx.fillRect(mp.x + 2, mp.y, mp.w - 4, 4);
+      } else if (mp.kind === 'summit') {
+        const pulse = 0.72 + Math.sin(this.miniTick * 0.14) * 0.25;
+        const glow = ctx.createRadialGradient(mp.x + mp.w / 2, mp.y, 8, mp.x + mp.w / 2, mp.y - 24, 150);
+        glow.addColorStop(0, `rgba(74,222,128,${0.36 * pulse})`);
+        glow.addColorStop(1, 'transparent');
+        ctx.fillStyle = glow;
+        ctx.fillRect(mp.x - 40, mp.y - 160, mp.w + 80, 175);
+
+        ctx.fillStyle = '#064e3b';
+        roundRectPath(ctx, mp.x, mp.y, mp.w, mp.h, 5);
+        ctx.fill();
+        ctx.fillStyle = '#4ade80';
+        roundRectPath(ctx, mp.x + 2, mp.y, mp.w - 4, 5, 2.5);
+        ctx.fill();
+
+        // Escape portal arch
+        const cx = mp.x + mp.w / 2;
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(cx, mp.y - 2, 34, Math.PI, 0);
+        ctx.stroke();
+        ctx.fillStyle = '#fde047';
+        ctx.font = '800 11px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(this.currentMinigame === 'avalanche' ? '★ XİLAS DÜŞƏRGƏSİ ★' : '▲ ZİRVƏ ÇIXIŞI ▲', cx, mp.y - 44);
+      } else if (mp.kind === 'snow') {
+        // Flat frozen slate ledge with crisp white snow cap & small icicles
+        const rock = ctx.createLinearGradient(0, mp.y, 0, mp.y + mp.h);
+        rock.addColorStop(0, '#334155');
+        rock.addColorStop(1, '#0f172a');
+        ctx.fillStyle = rock;
+        roundRectPath(ctx, mp.x, mp.y + 3, mp.w, mp.h - 3, 4);
+        ctx.fill();
+        ctx.fillStyle = '#f8fafc';
+        roundRectPath(ctx, mp.x, mp.y, mp.w, 6, 3);
+        ctx.fill();
+        ctx.fillStyle = '#bae6fd';
+        ctx.fillRect(mp.x + 2, mp.y + 5, mp.w - 4, 2);
+        // Subtle icicle teeth along underside
+        ctx.fillStyle = 'rgba(186,230,253,0.45)';
+        for (let ix = mp.x + 16; ix < mp.x + mp.w - 14; ix += 34) {
+          ctx.beginPath();
+          ctx.moveTo(ix - 3, mp.y + mp.h);
+          ctx.lineTo(ix + 3, mp.y + mp.h);
+          ctx.lineTo(ix, mp.y + mp.h + 6);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else if (mp.kind === 'bridge' || mp.kind === 'hatch') {
+        ctx.fillStyle = '#1e293b';
+        roundRectPath(ctx, mp.x, mp.y, mp.w, mp.h, 4);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1.4;
+        for (let tx = mp.x + 10; tx < mp.x + mp.w - 14; tx += 18) {
+          ctx.beginPath();
+          ctx.moveTo(tx, mp.y + 4);
+          ctx.lineTo(tx + 9, mp.y + mp.h - 3);
+          ctx.stroke();
+        }
+        ctx.fillStyle = accent;
+        roundRectPath(ctx, mp.x + 2, mp.y, mp.w - 4, 3.5, 2);
+        ctx.fill();
+      } else {
+        const sg = ctx.createLinearGradient(0, mp.y, 0, mp.y + mp.h);
+        sg.addColorStop(0, '#334155');
+        sg.addColorStop(1, '#0f172a');
+        ctx.fillStyle = sg;
+        roundRectPath(ctx, mp.x, mp.y, mp.w, mp.h, 4);
+        ctx.fill();
+        ctx.fillStyle = accent;
+        ctx.fillRect(mp.x + 2, mp.y, mp.w - 4, 3.5);
+        ctx.fillStyle = 'rgba(255,255,255,0.22)';
+        for (let rx = mp.x + 12; rx < mp.x + mp.w - 8; rx += 22) {
+          ctx.beginPath(); ctx.arc(rx, mp.y + 8, 1.6, 0, Math.PI * 2); ctx.fill();
+        }
       }
       ctx.restore();
     }
@@ -3815,67 +3573,218 @@ export class MinigameEngine {
     }
   }
 
-  private drawFactorySaw(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, rot: number) {
-    ctx.save();
-    ctx.translate(x, y);
+  private drawInfernoWorld(ctx: CanvasRenderingContext2D) {
+    const cw = this.cw;
+    const fh = this.infWorldH;
+    const t = this.miniTick * 0.04;
 
-    // Warm golden ambient buzzsaw rim glow (matches factory Parkur aesthetic)
-    const aura = ctx.createRadialGradient(0, 0, r * 0.45, 0, 0, r + 15);
-    aura.addColorStop(0, 'rgba(251,191,36,0.34)');
-    aura.addColorStop(0.6, 'rgba(245,158,11,0.16)');
-    aura.addColorStop(1, 'transparent');
-    ctx.fillStyle = aura;
-    ctx.beginPath(); ctx.arc(0, 0, r + 15, 0, Math.PI * 2); ctx.fill();
+    // Foundry shaft side brick/steel columns
+    ctx.fillStyle = '#18100d';
+    ctx.fillRect(0, 0, 26, fh);
+    ctx.fillRect(cw - 26, 0, 26, fh);
+    ctx.fillStyle = '#451a03';
+    ctx.fillRect(24, 0, 4, fh);
+    ctx.fillRect(cw - 28, 0, 4, fh);
 
-    ctx.rotate(rot);
+    // Wall sconces & industrial vertical steel I-beams
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    ctx.fillRect(cw * 0.24, 0, 14, fh);
+    ctx.fillRect(cw * 0.76 - 14, 0, 14, fh);
 
-    // Curved steel teeth
-    const teeth = 18;
-    ctx.fillStyle = '#cbd5e1';
-    ctx.beginPath();
-    for (let t = 0; t < teeth; t++) {
-      const a1 = (t / teeth) * Math.PI * 2;
-      const aMid = ((t + 0.35) / teeth) * Math.PI * 2;
-      const a2 = ((t + 0.65) / teeth) * Math.PI * 2;
-      if (t === 0) ctx.moveTo(Math.cos(a1) * (r - 2), Math.sin(a1) * (r - 2));
-      else ctx.lineTo(Math.cos(a1) * (r - 2), Math.sin(a1) * (r - 2));
-      ctx.lineTo(Math.cos(aMid) * (r + 5.5), Math.sin(aMid) * (r + 5.5));
-      ctx.lineTo(Math.cos(a2) * (r - 2), Math.sin(a2) * (r - 2));
+    for (let wy = 160; wy < fh - 120; wy += 240) {
+      for (const lx of [34, cw - 34]) {
+        const glow = ctx.createRadialGradient(lx, wy, 2, lx, wy, 56);
+        glow.addColorStop(0, 'rgba(251,146,60,0.42)');
+        glow.addColorStop(1, 'transparent');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(lx, wy, 56, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fb923c';
+        ctx.beginPath(); ctx.arc(lx, wy, 4, 0, Math.PI * 2); ctx.fill();
+      }
     }
+
+    // Giant rotating background iron cogs
+    const cogs: [number, number, number, number][] = [
+      [cw * 0.2, fh - 260, 62, 1],
+      [cw * 0.78, fh - 490, 74, -1],
+      [cw * 0.22, fh - 770, 68, 1],
+      [cw * 0.80, fh - 1030, 66, -1],
+      [cw * 0.50, 320, 82, 1],
+    ];
+    for (const [cx, cy, r, dir] of cogs) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(t * 0.25 * dir);
+      ctx.fillStyle = 'rgba(41,28,24,0.85)';
+      ctx.strokeStyle = 'rgba(180,83,9,0.32)';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      for (let k = 0; k < 10; k++) {
+        ctx.save();
+        ctx.rotate((k / 10) * Math.PI * 2);
+        ctx.fillRect(-7, -r * 0.92, 14, r * 0.24);
+        ctx.restore();
+      }
+      ctx.fillStyle = '#0f0907';
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.24, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    // Pouring molten steel streams behind catwalks
+    for (const fx of [cw * 0.16, cw * 0.5, cw * 0.84]) {
+      const sg = ctx.createLinearGradient(fx - 7, 0, fx + 7, 0);
+      sg.addColorStop(0, 'rgba(234,88,12,0.18)');
+      sg.addColorStop(0.5, 'rgba(253,224,71,0.34)');
+      sg.addColorStop(1, 'rgba(234,88,12,0.18)');
+      ctx.fillStyle = sg;
+      ctx.fillRect(fx - 5, 110, 10, this.infLavaY - 110);
+    }
+
+    // Drifting foundry embers
+    for (const em of this.zEmbers) {
+      ctx.fillStyle = `rgba(251,146,60,${em.a})`;
+      ctx.beginPath(); ctx.arc(em.x, em.y, em.r, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Foundry catwalks, springs & summit pad
+    this.drawStyledSidePlats(ctx, '#f97316');
+    this.drawPickups(ctx);
+
+    // Falling molten slag droplets
+    for (const s of this.infSlags) {
+      if (s.warn > 0) {
+        const pulse = 0.55 + Math.sin(this.miniTick * 0.4) * 0.35;
+        ctx.strokeStyle = `rgba(253,224,71,${pulse * 0.55})`;
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([5, 6]);
+        ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x, Math.min(this.infLavaY, s.y + 340)); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#fb923c';
+        ctx.beginPath(); ctx.arc(s.x, s.y, 7, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.save();
+        ctx.shadowColor = '#f97316';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ea580c';
+        ctx.beginPath(); ctx.moveTo(s.x - s.r * 0.7, s.y); ctx.lineTo(s.x, s.y - s.r * 2.2); ctx.lineTo(s.x + s.r * 0.7, s.y); ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Rising Molten Lava Ocean
+    const ly = this.infLavaY;
+    const lavaGlow = ctx.createLinearGradient(0, ly - 95, 0, ly);
+    lavaGlow.addColorStop(0, 'transparent');
+    lavaGlow.addColorStop(1, 'rgba(249,115,22,0.48)');
+    ctx.fillStyle = lavaGlow;
+    ctx.fillRect(0, ly - 95, cw, 95);
+
+    const lavaBody = ctx.createLinearGradient(0, ly, 0, ly + 420);
+    lavaBody.addColorStop(0, '#fde047');
+    lavaBody.addColorStop(0.14, '#f97316');
+    lavaBody.addColorStop(0.55, '#dc2626');
+    lavaBody.addColorStop(1, '#450a0a');
+    ctx.fillStyle = lavaBody;
+    ctx.beginPath();
+    ctx.moveTo(0, ly + 420);
+    for (let lx = 0; lx <= cw; lx += 24) {
+      ctx.lineTo(lx, ly + Math.sin(lx * 0.035 + t * 2.4) * 5);
+    }
+    ctx.lineTo(cw, ly + 420);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = '#475569';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+  }
 
-    // Brushed radial steel disc
-    const disc = ctx.createRadialGradient(-r * 0.2, -r * 0.2, 2, 0, 0, r - 1);
-    disc.addColorStop(0, '#f1f5f9');
-    disc.addColorStop(0.45, '#94a3b8');
-    disc.addColorStop(0.85, '#334155');
-    disc.addColorStop(1, '#1e293b');
-    ctx.fillStyle = disc;
-    ctx.beginPath(); ctx.arc(0, 0, r - 1.5, 0, Math.PI * 2); ctx.fill();
+  private drawAvalancheWorld(ctx: CanvasRenderingContext2D) {
+    const cw = this.cw;
+    const wh = this.avaWorldH;
+    const t = this.miniTick * 0.05;
 
-    // Golden friction edge ring
-    ctx.strokeStyle = 'rgba(251,191,36,0.72)';
+    // Vertical alpine gorge cliff walls
+    ctx.fillStyle = '#091526';
+    ctx.fillRect(0, 0, 28, wh);
+    ctx.fillRect(cw - 28, 0, 28, wh);
+    ctx.fillStyle = '#1e3a5f';
+    ctx.fillRect(26, 0, 3, wh);
+    ctx.fillRect(cw - 29, 0, 3, wh);
+
+    // Warm alpine trail lanterns spaced down the gorge walls
+    for (let wy = 130; wy < wh - 160; wy += 224) {
+      for (const lx of [34, cw - 34]) {
+        const glow = ctx.createRadialGradient(lx, wy, 2, lx, wy, 52);
+        glow.addColorStop(0, 'rgba(56,189,248,0.34)');
+        glow.addColorStop(1, 'transparent');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(lx, wy, 52, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#7dd3fc';
+        ctx.beginPath(); ctx.arc(lx, wy, 3.6, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // Crisp glowing gap drop cues on every tier so openings are immediately readable
+    const bob = Math.sin(t * 2.2) * 3;
+    for (const gp of this.avaGaps) {
+      const gx = gp.x + gp.w * 0.5;
+      const shaft = ctx.createLinearGradient(0, gp.y - 22, 0, gp.y + 38);
+      shaft.addColorStop(0, 'rgba(56,189,248,0)');
+      shaft.addColorStop(0.5, 'rgba(56,189,248,0.16)');
+      shaft.addColorStop(1, 'rgba(56,189,248,0)');
+      ctx.fillStyle = shaft;
+      ctx.fillRect(gp.x + 6, gp.y - 22, gp.w - 12, 60);
+
+      ctx.fillStyle = 'rgba(125,211,252,0.82)';
+      ctx.font = '800 18px "Barlow Condensed", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('▾', gx, gp.y + 8 + bob);
+    }
+
+    // Flat snow platforms, rescue base & pickups
+    this.drawStyledSidePlats(ctx, '#38bdf8');
+    this.drawPickups(ctx);
+
+    // Roaring Snow Avalanche Wave descending from the top
+    const ay = this.avaY;
+    const haze = ctx.createLinearGradient(0, ay, 0, ay + 92);
+    haze.addColorStop(0, 'rgba(224,242,254,0.48)');
+    haze.addColorStop(1, 'transparent');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, ay, cw, 92);
+
+    const wallGrad = ctx.createLinearGradient(0, ay - 460, 0, ay);
+    wallGrad.addColorStop(0, '#0f172a');
+    wallGrad.addColorStop(0.42, '#94a3b8');
+    wallGrad.addColorStop(0.78, '#e0f2fe');
+    wallGrad.addColorStop(1, '#ffffff');
+    ctx.fillStyle = wallGrad;
+    ctx.fillRect(0, ay - 620, cw, 620);
+
+    // Swirling billowing snow puffs along the avalanche crest
+    const puffStep = 44;
+    for (let px = -16; px <= cw + 24; px += puffStep) {
+      const waveOff = Math.sin(px * 0.045 + t * 2.4) * 10 + Math.cos(px * 0.09 - t * 1.9) * 6;
+      const rad = 26 + ((Math.abs(Math.round(px)) * 7) % 14);
+      ctx.fillStyle = '#e0f2fe';
+      ctx.beginPath();
+      ctx.arc(px, ay - 8 + waveOff, rad * 1.08, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(px + 8, ay - 2 + waveOff * 0.8, rad * 0.85, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Danger line indicator at avalanche front
+    ctx.strokeStyle = 'rgba(56,189,248,0.65)';
     ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, 0, r - 2.5, 0, Math.PI * 2); ctx.stroke();
-
-    // Inner bevel + dark bolted center hub
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.54, 0, Math.PI * 2); ctx.stroke();
-
-    ctx.fillStyle = '#18181b';
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.28, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#64748b';
-    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for (let px = 0; px <= cw; px += 22) {
+      const py = ay + 14 + Math.sin(px * 0.05 + t * 2.6) * 5;
+      if (px === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
     ctx.stroke();
-
-    ctx.fillStyle = '#09090b';
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.12, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
   }
 
   private drawMap(ctx: CanvasRenderingContext2D) {
@@ -3885,839 +3794,454 @@ export class MinigameEngine {
 
     if (this.currentMinigame === 'zombie') {
       this.drawZombieSky(ctx, cw, ch);
-    } else if (this.currentMinigame === 'samurai') {
-      // Feudal Kyoto Shrine Courtyard & Crimson Blood Moon Dojo
-      const g = ctx.createRadialGradient(cw / 2, ch * 0.46, 30, cw / 2, ch * 0.5, Math.max(cw, ch) * 0.72);
-      g.addColorStop(0, '#2a131c');
-      g.addColorStop(0.55, '#170c14');
-      g.addColorStop(1, '#0a0508');
-      ctx.fillStyle = g;
+    } else if (this.currentMinigame === 'meteor') {
+      const deckY = ch - 56;
+
+      // Deep volcanic cosmic sky gradient
+      const sky = ctx.createLinearGradient(0, 0, 0, ch);
+      sky.addColorStop(0, '#070312');
+      sky.addColorStop(0.45, '#1e0b2e');
+      sky.addColorStop(0.80, '#5a1808');
+      sky.addColorStop(1, '#1c0703');
+      ctx.fillStyle = sky;
       ctx.fillRect(0, 0, cw, ch);
 
-      // Large glowing Crimson Full Moon backdrop reflection
-      const moonR = Math.min(cw, ch) * 0.19;
-      const moonGlow = ctx.createRadialGradient(cw / 2, ch * 0.46, moonR * 0.25, cw / 2, ch * 0.46, moonR * 2.4);
-      moonGlow.addColorStop(0, 'rgba(251,113,133,0.42)');
-      moonGlow.addColorStop(0.42, 'rgba(225,29,72,0.16)');
-      moonGlow.addColorStop(1, 'transparent');
-      ctx.fillStyle = moonGlow;
-      ctx.beginPath(); ctx.arc(cw / 2, ch * 0.46, moonR * 2.4, 0, Math.PI * 2); ctx.fill();
-
-      ctx.fillStyle = 'rgba(253,164,175,0.22)';
-      ctx.beginPath(); ctx.arc(cw / 2, ch * 0.46, moonR, 0, Math.PI * 2); ctx.fill();
-
-      // Distant Japanese Torii gate silhouette & pagoda roofline at top courtyard wall
-      ctx.fillStyle = 'rgba(9,6,10,0.68)';
-      ctx.fillRect(cw * 0.5 - 78, 50, 156, 8);
-      ctx.fillRect(cw * 0.5 - 64, 64, 128, 6);
-      ctx.fillRect(cw * 0.5 - 50, 56, 10, 44);
-      ctx.fillRect(cw * 0.5 + 40, 56, 10, 44);
-
-      // Rich Dojo Tatami & Dark Cedar Wood Floor Grid
-      ctx.strokeStyle = 'rgba(251,191,36,0.055)';
-      ctx.lineWidth = 1;
-      for (let py = 54; py < ch; py += 44) {
-        ctx.beginPath(); ctx.moveTo(14, py); ctx.lineTo(cw - 14, py); ctx.stroke();
-      }
-      for (let px = 48; px < cw - 24; px += 76) {
-        ctx.beginPath(); ctx.moveTo(px, 50); ctx.lineTo(px, ch - 12); ctx.stroke();
+      // Twinkling starfield
+      for (let i = 0; i < 54; i++) {
+        const sx = ((i * 197 + 41) % Math.max(100, Math.floor(cw)));
+        const sy = ((i * 89 + 19) % Math.max(80, Math.floor(ch * 0.54)));
+        const a = 0.25 + 0.6 * Math.abs(Math.sin(nowT * 1.4 + i));
+        ctx.fillStyle = `rgba(255,255,255,${a})`;
+        ctx.fillRect(sx, sy, i % 4 === 0 ? 2.2 : 1.5, i % 4 === 0 ? 2.2 : 1.5);
       }
 
-      // Ornate Dojo Combat Circle Crest
-      ctx.strokeStyle = 'rgba(251,191,36,0.22)';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(cw / 2, ch * 0.52, Math.min(cw, ch) * 0.24, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = 'rgba(251,113,133,0.28)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(cw / 2, ch * 0.52, Math.min(cw, ch) * 0.21, 0, Math.PI * 2); ctx.stroke();
+      // Giant ringed exoplanet with nebula glow
+      const px = cw * 0.78;
+      const py = ch * 0.22;
+      const pHalo = ctx.createRadialGradient(px, py, 20, px, py, 96);
+      pHalo.addColorStop(0, 'rgba(244,114,182,0.28)');
+      pHalo.addColorStop(1, 'transparent');
+      ctx.fillStyle = pHalo;
+      ctx.beginPath(); ctx.arc(px, py, 96, 0, Math.PI * 2); ctx.fill();
 
-      // Double Lacquered Dojo Frame Border
-      ctx.strokeStyle = 'rgba(190,18,60,0.52)';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(10, 48, cw - 20, ch - 58);
-      ctx.strokeStyle = 'rgba(251,191,36,0.35)';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(16, 54, cw - 32, ch - 70);
+      const pGrad = ctx.createRadialGradient(px - 14, py - 14, 8, px, py, 44);
+      pGrad.addColorStop(0, '#f472b6');
+      pGrad.addColorStop(0.55, '#7e22ce');
+      pGrad.addColorStop(1, '#2e1065');
+      ctx.fillStyle = pGrad;
+      ctx.beginPath(); ctx.arc(px, py, 42, 0, Math.PI * 2); ctx.fill();
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(-0.24);
+      ctx.strokeStyle = 'rgba(253,186,116,0.5)';
+      ctx.lineWidth = 4.5;
+      ctx.beginPath(); ctx.ellipse(0, 0, 76, 15, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
 
-      // Swaying silhouetted bamboo clusters at edges
-      ctx.strokeStyle = 'rgba(5,5,7,0.72)';
-      ctx.lineWidth = 5;
-      for (const bx of [26, 42, cw - 42, cw - 26]) {
-        const sway = Math.sin(nowT + bx) * 4;
-        ctx.beginPath();
-        ctx.moveTo(bx, ch);
-        ctx.quadraticCurveTo(bx + sway, ch * 0.5, bx + sway * 1.4, 48);
-        ctx.stroke();
+      // Far volcanic ridge + erupting volcano glow cone
+      ctx.fillStyle = '#180c24';
+      ctx.beginPath();
+      ctx.moveTo(0, deckY);
+      ctx.lineTo(cw * 0.14, deckY - 125);
+      ctx.lineTo(cw * 0.28, deckY - 62);
+      ctx.lineTo(cw * 0.48, deckY - 165);
+      ctx.lineTo(cw * 0.54, deckY - 165);
+      ctx.lineTo(cw * 0.68, deckY - 76);
+      ctx.lineTo(cw * 0.84, deckY - 138);
+      ctx.lineTo(cw, deckY - 52);
+      ctx.lineTo(cw, deckY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Volcano crater glow & magma fissures on distant mountains
+      const vGlow = ctx.createRadialGradient(cw * 0.51, deckY - 165, 4, cw * 0.51, deckY - 165, 72);
+      vGlow.addColorStop(0, 'rgba(251,146,60,0.48)');
+      vGlow.addColorStop(1, 'transparent');
+      ctx.fillStyle = vGlow;
+      ctx.beginPath(); ctx.arc(cw * 0.51, deckY - 165, 72, 0, Math.PI * 2); ctx.fill();
+
+      ctx.strokeStyle = 'rgba(249,115,22,0.38)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cw * 0.50, deckY - 160);
+      ctx.lineTo(cw * 0.47, deckY - 110);
+      ctx.lineTo(cw * 0.51, deckY - 74);
+      ctx.stroke();
+
+      // Drifting volcanic embers
+      for (const em of this.zEmbers) {
+        ctx.fillStyle = `rgba(251,146,60,${em.a})`;
+        ctx.beginPath(); ctx.arc(em.x, em.y, em.r, 0, Math.PI * 2); ctx.fill();
       }
 
-      // 4 Ornate Glowing Stone Toro Courtyard Lanterns with warm floor light pools
-      for (const [lx, ly] of [[38, 76], [cw - 38, 76], [38, ch - 32], [cw - 38, ch - 32]]) {
-        const flick = 0.92 + Math.sin(nowT * 2.2 + lx) * 0.08;
-        const lg = ctx.createRadialGradient(lx, ly, 4, lx, ly, 92 * flick);
-        lg.addColorStop(0, 'rgba(251,146,60,0.42)');
-        lg.addColorStop(0.5, 'rgba(244,63,94,0.14)');
-        lg.addColorStop(1, 'transparent');
-        ctx.fillStyle = lg;
-        ctx.beginPath(); ctx.arc(lx, ly, 92 * flick, 0, Math.PI * 2); ctx.fill();
+      // Bubbling molten magma river beneath suspension bridge
+      const chasm = ctx.createLinearGradient(0, deckY, 0, ch);
+      chasm.addColorStop(0, '#450a0a');
+      chasm.addColorStop(0.55, '#dc2626');
+      chasm.addColorStop(1, '#fb923c');
+      ctx.fillStyle = chasm;
+      ctx.fillRect(0, deckY, cw, ch - deckY);
 
-        // Stone lantern pedestal & sloped roof
-        ctx.fillStyle = '#27272a';
-        roundRectPath(ctx, lx - 10, ly - 10, 20, 20, 3);
-        ctx.fill();
+      ctx.fillStyle = 'rgba(253,224,71,0.34)';
+      for (let bx = 28; bx < cw; bx += 78) {
+        const waveY = deckY + 26 + Math.sin(nowT * 2.2 + bx) * 4;
+        ctx.beginPath(); ctx.ellipse(bx, waveY, 22, 4, 0, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Suspension bridge towers & cables
+      ctx.strokeStyle = 'rgba(148,163,184,0.38)';
+      ctx.lineWidth = 2;
+      for (const tx of [cw * 0.16, cw * 0.84]) {
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(tx - 6, deckY - 150, 12, 150);
         ctx.fillStyle = '#f97316';
-        ctx.fillRect(lx - 5, ly - 5, 10, 10);
-        ctx.fillStyle = '#fef08a';
-        ctx.fillRect(lx - 2.5, ly - 2.5, 5, 5);
-        ctx.fillStyle = '#3f3f46';
+        ctx.beginPath(); ctx.arc(tx, deckY - 152, 4, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath();
-        ctx.moveTo(lx - 14, ly - 9);
-        ctx.lineTo(lx, ly - 17);
-        ctx.lineTo(lx + 14, ly - 9);
-        ctx.closePath();
-        ctx.fill();
+        ctx.moveTo(0, deckY - 30);
+        ctx.quadraticCurveTo(tx * 0.5, deckY - 62, tx, deckY - 146);
+        ctx.stroke();
       }
-
-      this.drawPillars(ctx, '#fbbf24', 'dojo');
-
-      // Two-layer glowing drifting Sakura petals
-      for (let i = 0; i < this.sakuraPetals.length; i++) {
-        const sk = this.sakuraPetals[i];
-        ctx.fillStyle = i % 3 === 0 ? 'rgba(251,113,133,0.72)' : 'rgba(251,207,232,0.68)';
-        ctx.beginPath();
-        ctx.ellipse(sk.x, sk.y, sk.r * 1.15, sk.r * 0.58, nowT + sk.x * 0.03, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      this.drawMiniHeader(ctx, 'SAMURAY DUELLOSU');
-    } else if (this.currentMinigame === 'sniper') {
-      // Moody dark concrete warehouse backdrop
-      const g = ctx.createLinearGradient(0, 0, 0, ch);
-      g.addColorStop(0, '#10141b');
-      g.addColorStop(0.55, '#171c25');
-      g.addColorStop(1, '#0b0e13');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, cw, ch);
-
-      // Subtle concrete wall panels + vertical seams & overhead steel catwalk truss
-      ctx.strokeStyle = 'rgba(255,255,255,0.035)';
-      ctx.lineWidth = 1;
-      for (let gx = 80; gx < cw; gx += 120) {
-        ctx.beginPath(); ctx.moveTo(gx, 48); ctx.lineTo(gx, ch); ctx.stroke();
-      }
-      ctx.fillStyle = '#0a0d12';
-      ctx.fillRect(0, 44, cw, 16);
-      ctx.strokeStyle = '#1f2630';
-      ctx.lineWidth = 2;
       ctx.beginPath();
-      for (let tx = 0; tx < cw; tx += 44) {
-        ctx.moveTo(tx, 46); ctx.lineTo(tx + 22, 62); ctx.lineTo(tx + 44, 46);
-      }
+      ctx.moveTo(cw * 0.16, deckY - 146);
+      ctx.quadraticCurveTo(cw * 0.5, deckY - 54, cw * 0.84, deckY - 146);
       ctx.stroke();
 
-      // Left-wall electrical conduits & junction box silhouette
-      ctx.fillStyle = '#0d1118';
-      ctx.fillRect(22, 56, 6, ch * 0.6);
-      ctx.fillRect(36, 56, 4, ch * 0.48);
-      ctx.fillRect(18, 128, 28, 38);
-
-      // Soft angled warehouse dust/light beams from ceiling rafters
-      for (const [lx, angle] of [[cw * 0.22, 0.35], [cw * 0.68, -0.32]]) {
-        ctx.save();
-        ctx.translate(lx, 46);
-        ctx.rotate(angle);
-        const beam = ctx.createLinearGradient(0, 0, 0, ch * 0.85);
-        beam.addColorStop(0, 'rgba(203,213,225,0.08)');
-        beam.addColorStop(1, 'transparent');
-        ctx.fillStyle = beam;
-        ctx.beginPath();
-        ctx.moveTo(-28, 0);
-        ctx.lineTo(28, 0);
-        ctx.lineTo(130, ch * 0.85);
-        ctx.lineTo(-130, ch * 0.85);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-      }
-
-      // Perimeter concrete lip
-      ctx.strokeStyle = 'rgba(148,163,184,0.14)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(10, 48, cw - 20, ch - 58);
-
-      // Textured concrete warehouse cover pillars (dark slate blocks with subtle weathering)
-      for (const pil of this.pillars) {
-        ctx.save();
-        ctx.fillStyle = 'rgba(0,0,0,0.58)';
-        roundRectPath(ctx, pil.x + 5, pil.y + 7, pil.w, pil.h, 3);
-        ctx.fill();
-
-        const pg = ctx.createLinearGradient(pil.x, pil.y, pil.x + pil.w, pil.y + pil.h);
-        pg.addColorStop(0, '#363b45');
-        pg.addColorStop(0.5, '#242931');
-        pg.addColorStop(1, '#13161b');
-        ctx.fillStyle = pg;
-        roundRectPath(ctx, pil.x, pil.y, pil.w, pil.h, 3);
-        ctx.fill();
-
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        ctx.fillRect(pil.x + 1, pil.y + 1, pil.w - 2, 3);
-        ctx.strokeStyle = '#090b0e';
-        ctx.lineWidth = 1.6;
-        roundRectPath(ctx, pil.x, pil.y, pil.w, pil.h, 3);
-        ctx.stroke();
-
-        // Subtle surface fracture crack
-        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.moveTo(pil.x + pil.w * 0.25, pil.y + pil.h * 0.25);
-        ctx.lineTo(pil.x + pil.w * 0.48, pil.y + pil.h * 0.42);
-        ctx.lineTo(pil.x + pil.w * 0.36, pil.y + pil.h * 0.65);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // Crisp Crimson Sniper Laser Sights + Bounce Impact Flares!
-      for (const p of this.players) {
-        if (!p.alive) continue;
-        const startX = p.x + Math.cos(p.angle) * 22;
-        const startY = p.y - 6 + Math.sin(p.angle) * 22;
-        const pts = this.raycastBouncePath(startX, startY, p.angle, 920, 2);
-
-        ctx.save();
-        ctx.shadowColor = '#ef4444';
-        ctx.shadowBlur = 10;
-        ctx.strokeStyle = 'rgba(239,68,68,0.65)';
-        ctx.lineWidth = 2.2;
-        ctx.beginPath();
-        pts.forEach((pt, idx) => (idx === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
-        ctx.stroke();
-
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = '#fca5a5';
-        ctx.lineWidth = 0.9;
-        ctx.beginPath();
-        pts.forEach((pt, idx) => (idx === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
-        ctx.stroke();
-
-        // Ricochet bounce spark flares on pillars/walls
-        for (let i = 1; i < pts.length; i++) {
-          const bpt = pts[i];
-          const isFinal = i === pts.length - 1;
-          const fg = ctx.createRadialGradient(bpt.x, bpt.y, 1, bpt.x, bpt.y, isFinal ? 8 : 13);
-          fg.addColorStop(0, 'rgba(254,202,202,0.95)');
-          fg.addColorStop(0.35, 'rgba(239,68,68,0.7)');
-          fg.addColorStop(1, 'transparent');
-          ctx.fillStyle = fg;
-          ctx.beginPath(); ctx.arc(bpt.x, bpt.y, isFinal ? 8 : 13, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.restore();
-      }
-      this.drawMiniHeader(ctx, 'SNAYPER DUELLOSU');
-    } else if (this.currentMinigame === 'blades') {
-      const g = ctx.createRadialGradient(cw / 2, ch / 2, 30, cw / 2, ch / 2, Math.max(cw, ch) * 0.7);
-      g.addColorStop(0, '#231618');
-      g.addColorStop(0.65, '#130e10');
-      g.addColorStop(1, '#08080a');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, cw, ch);
-
-      // Rotating sub-floor industrial exhaust turbine + steel grating
-      ctx.save();
-      ctx.translate(cw / 2, (ch + 44) / 2);
-      ctx.rotate(nowT * 0.8);
-      ctx.fillStyle = 'rgba(245,158,11,0.06)';
-      for (let b = 0; b < 6; b++) {
-        ctx.rotate(Math.PI / 3);
-        ctx.fillRect(-14, -Math.min(cw, ch) * 0.36, 28, Math.min(cw, ch) * 0.72);
-      }
-      ctx.restore();
-
-      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-      ctx.lineWidth = 1;
-      for (let gx = 16; gx < cw - 16; gx += 32) {
-        ctx.beginPath(); ctx.moveTo(gx, 48); ctx.lineTo(gx, ch - 10); ctx.stroke();
-      }
-
-      // Caution industrial border & steel cover pillars
-      ctx.strokeStyle = 'rgba(245,158,11,0.34)';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(10, 48, cw - 20, ch - 58);
-
-      this.drawPillars(ctx, '#f59e0b', 'cover');
-      this.drawPickups(ctx);
-
-      // Spinning industrial factory buzzsaws
-      for (const s of this.saws) {
-        this.drawFactorySaw(ctx, s.x, s.y, s.r, s.rot);
-      }
-      this.drawMiniHeader(ctx, 'MİŞAR ARENASI');
-    } else if (this.currentMinigame === 'sumo') {
-      const cx = cw / 2;
-      const cy = ch / 2;
-      const maxR = Math.min(cw, ch) * 0.37;
-      const r = maxR * this.ringScale;
-      const g = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, Math.max(cw, ch) * 0.78);
-      g.addColorStop(0, '#2a1d12');
-      g.addColorStop(0.55, '#130f12');
-      g.addColorStop(1, '#09090b');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, cw, ch);
-
-      // Slatted wooden dojo hall floor beneath dohyo platform
-      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-      ctx.lineWidth = 1;
-      for (let py = 48; py < ch; py += 28) {
-        ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(cw, py); ctx.stroke();
-      }
-
-      // Crimson silk corner banners + hanging warm lanterns
-      for (const [lx, ly] of [[42, 54], [cw - 42, 54], [42, ch - 36], [cw - 42, ch - 36]]) {
-        const lg = ctx.createRadialGradient(lx, ly, 2, lx, ly, 75);
-        lg.addColorStop(0, 'rgba(251,146,60,0.34)');
-        lg.addColorStop(1, 'transparent');
-        ctx.fillStyle = lg;
-        ctx.beginPath(); ctx.arc(lx, ly, 75, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#b91c1c';
-        ctx.fillRect(lx - 12, ly - 10, 24, 20);
-        ctx.fillStyle = '#fb923c';
-        ctx.beginPath(); ctx.arc(lx, ly, 5.5, 0, Math.PI * 2); ctx.fill();
-      }
-
-      if (this.ringScale < 0.99) {
-        ctx.strokeStyle = 'rgba(239,68,68,0.22)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([8, 8]);
-        ctx.beginPath(); ctx.arc(cx, cy, maxR, 0, Math.PI * 2); ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      ctx.fillStyle = '#1c1510';
-      ctx.beginPath(); ctx.arc(cx, cy + 10, r + 16, 0, Math.PI * 2); ctx.fill();
-
-      ctx.save();
-      ctx.shadowColor = this.ringScale < 0.7 ? '#ef4444' : '#f59e0b';
-      ctx.shadowBlur = 30;
-      const rg = ctx.createRadialGradient(cx, cy - r * 0.2, r * 0.1, cx, cy, r);
-      rg.addColorStop(0, '#78552f');
-      rg.addColorStop(0.75, '#473019');
-      rg.addColorStop(1, '#26180c');
-      ctx.fillStyle = rg;
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-
+      // Main reinforced steel bridge deck
+      const dg = ctx.createLinearGradient(0, deckY, 0, deckY + 20);
+      dg.addColorStop(0, '#475569');
+      dg.addColorStop(1, '#0f172a');
+      ctx.fillStyle = dg;
+      ctx.fillRect(0, deckY, cw, 22);
+      ctx.fillStyle = '#f97316';
+      ctx.fillRect(0, deckY, cw, 3.5);
       ctx.strokeStyle = 'rgba(255,255,255,0.14)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(cx - r * 0.25, cy); ctx.lineTo(cx + r * 0.25, cy);
-      ctx.moveTo(cx, cy - r * 0.25); ctx.lineTo(cx, cy + r * 0.25);
-      ctx.stroke();
-
-      ctx.strokeStyle = this.ringScale < 0.72 ? '#ef4444' : '#fbbf24';
-      ctx.lineWidth = 6;
-      ctx.setLineDash([16, 9]);
-      ctx.lineDashOffset = -nowT * 14;
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
-      if (this.ringScale < 0.72) {
-        ctx.strokeStyle = `rgba(239,68,68,${0.25 + 0.2 * Math.sin(nowT * 6)})`;
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(cx, cy, r + 9, 0, Math.PI * 2); ctx.stroke();
-      }
-      this.drawPickups(ctx);
-    } else if (this.currentMinigame === 'futbol') {
-      ctx.fillStyle = '#09090b';
-      ctx.fillRect(0, 0, cw, ch);
-      const g = ctx.createLinearGradient(0, 44, 0, ch);
-      g.addColorStop(0, '#166534');
-      g.addColorStop(0.5, '#15803d');
-      g.addColorStop(1, '#0c4321');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 44, cw, ch - 44);
-      ctx.fillStyle = 'rgba(255,255,255,0.045)';
-      for (let x = 0; x < cw; x += 80) ctx.fillRect(x, 44, 40, ch - 44);
-
-      // Stadium floodlight glares in 4 corners
-      for (const [fx, fy] of [[24, 54], [cw - 24, 54], [24, ch - 12], [cw - 24, ch - 12]]) {
-        const fl = ctx.createRadialGradient(fx, fy, 4, fx, fy, 160);
-        fl.addColorStop(0, 'rgba(255,255,255,0.16)');
-        fl.addColorStop(1, 'transparent');
-        ctx.fillStyle = fl;
-        ctx.beginPath(); ctx.arc(fx, fy, 160, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 1.5;
+      for (let rx = 18; rx < cw; rx += 36) {
+        ctx.beginPath(); ctx.moveTo(rx, deckY + 4); ctx.lineTo(rx + 18, deckY + 20); ctx.stroke();
       }
 
-      const vig = ctx.createRadialGradient(cw / 2, (ch + 44) / 2, cw * 0.15, cw / 2, (ch + 44) / 2, cw * 0.65);
-      vig.addColorStop(0, 'rgba(255,255,255,0.06)');
-      vig.addColorStop(1, 'rgba(0,0,0,0.44)');
-      ctx.fillStyle = vig;
-      ctx.fillRect(0, 44, cw, ch - 44);
+      // Catwalks & launch springs
+      this.drawStyledSidePlats(ctx, '#f59e0b');
 
-      const top = 52;
-      const bot = ch - 8;
-      const midY = (top + bot) / 2;
-      ctx.strokeStyle = 'rgba(255,255,255,0.48)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(12, top, cw - 24, bot - top);
-      ctx.beginPath(); ctx.moveTo(cw / 2, top); ctx.lineTo(cw / 2, bot); ctx.stroke();
-      ctx.beginPath(); ctx.arc(cw / 2, midY, 58, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.beginPath(); ctx.arc(cw / 2, midY, 4, 0, Math.PI * 2); ctx.fill();
-
-      // Corner bumpers visual arcs + Midfield cyan speed pads
-      ctx.fillStyle = 'rgba(251,191,36,0.22)';
-      for (const [cx, cy] of [[18, 52], [cw - 18, 52], [18, ch - 10], [cw - 18, ch - 10]]) {
-        ctx.beginPath(); ctx.arc(cx, cy, 26, 0, Math.PI * 2); ctx.fill();
-      }
-      for (const [bx, by] of [[cw * 0.5, (ch + 44) * 0.28], [cw * 0.5, (ch + 44) * 0.76]]) {
+      // Molten impact craters
+      for (const cr of this.meteorCraters) {
+        const a = Math.min(1, cr.life / 45);
         ctx.save();
-        ctx.fillStyle = 'rgba(56,189,248,0.22)';
-        ctx.beginPath(); ctx.arc(bx, by, 16, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 1.8;
-        ctx.stroke();
-        ctx.fillStyle = '#bae6fd';
-        ctx.font = '800 11px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('⚡', bx, by + 0.5);
-        ctx.restore();
-      }
-
-      ctx.strokeRect(12, midY - (bot - top) * 0.28, 72, (bot - top) * 0.56);
-      ctx.strokeRect(cw - 84, midY - (bot - top) * 0.28, 72, (bot - top) * 0.56);
-
-      const goalH = ch * 0.34;
-      const goalTop = (ch + 44) / 2 - goalH / 2;
-      for (const side of [0, 1]) {
-        const gx = side ? cw - 20 : 0;
-        const col = side ? '#ef4444' : '#3b82f6';
-        ctx.fillStyle = side ? 'rgba(239,68,68,0.28)' : 'rgba(59,130,246,0.28)';
-        ctx.fillRect(gx, goalTop, 20, goalH);
-        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-        ctx.lineWidth = 1;
-        for (let ny = goalTop + 10; ny < goalTop + goalH; ny += 12) {
-          ctx.beginPath(); ctx.moveTo(gx, ny); ctx.lineTo(gx + 20, ny); ctx.stroke();
-        }
-        ctx.strokeStyle = col;
-        ctx.lineWidth = 3.5;
-        ctx.strokeRect(gx, goalTop, 20, goalH);
-      }
-
-      const s1 = this.players[0]?.score || 0;
-      const s2 = this.players[1]?.score || 0;
-      this.drawMiniHeader(ctx, `${s1}  :  ${s2}`);
-
-      if (this.ball) {
-        const b = this.ball;
-        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.beginPath(); ctx.ellipse(b.x, b.y + b.radius + 3, b.radius * 0.95, 4, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.save();
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#18181b'; ctx.lineWidth = 1.4; ctx.stroke();
-        ctx.translate(b.x, b.y);
-        ctx.rotate((b.x + b.y) * 0.05);
-        ctx.fillStyle = '#18181b';
-        ctx.beginPath(); ctx.arc(0, 0, b.radius * 0.36, 0, Math.PI * 2); ctx.fill();
-        for (let k = 0; k < 5; k++) {
-          const a = (k * Math.PI * 2) / 5;
-          ctx.beginPath();
-          ctx.arc(Math.cos(a) * b.radius * 0.72, Math.sin(a) * b.radius * 0.72, 2.4, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-      }
-    } else if (this.currentMinigame === 'race') {
-      // Industrial Steel Factory Parkur Chamber
-      const bg = ctx.createLinearGradient(0, 0, 0, ch);
-      bg.addColorStop(0, '#10141a');
-      bg.addColorStop(0.55, '#191f28');
-      bg.addColorStop(1, '#0b0e12');
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, cw, ch);
-
-      // Parallax riveted steel bulkhead plates + vertical industrial pipes & warm amber LEDs
-      const plateShift = (this.raceOffset * 0.24) % 220;
-      for (let px = -plateShift; px < cw + 220; px += 220) {
-        const idx = Math.abs(Math.round((px + this.raceOffset * 0.24) / 220));
-        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(px, 46, 218, ch - 60);
-
-        // Rivets along plate seams
-        ctx.fillStyle = 'rgba(148,163,184,0.16)';
-        for (let ry = 58; ry < ch - 70; ry += 38) {
-          ctx.beginPath(); ctx.arc(px + 8, ry, 1.8, 0, Math.PI * 2); ctx.fill();
-          ctx.beginPath(); ctx.arc(px + 210, ry, 1.8, 0, Math.PI * 2); ctx.fill();
-        }
-
-        // Background factory machinery pipes + amber indicator lamps
-        const pipeX = px + 68 + (idx % 2) * 32;
-        ctx.fillStyle = '#11161d';
-        ctx.fillRect(pipeX, 46, 22, ch - 60);
-        ctx.fillRect(pipeX - 8, 92 + (idx % 3) * 34, 38, 12);
-
-        // Industrial conduit machine housing with orange LED light
-        const ledY = 128 + (idx % 3) * 38;
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(pipeX + 40, ledY, 44, 54);
-        const ledGlow = ctx.createRadialGradient(pipeX + 62, ledY + 14, 1, pipeX + 62, ledY + 14, 24);
-        ledGlow.addColorStop(0, 'rgba(245,158,11,0.55)');
-        ledGlow.addColorStop(1, 'transparent');
-        ctx.fillStyle = ledGlow;
-        ctx.beginPath(); ctx.arc(pipeX + 62, ledY + 14, 24, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillRect(pipeX + 59, ledY + 12, 6, 4);
-      }
-
-      // Lower hazard chasm grating + diagonal orange/black caution stripe along bottom
-      const hazardY = ch - 22;
-      ctx.fillStyle = '#090b0f';
-      ctx.fillRect(0, hazardY, cw, 22);
-      ctx.fillStyle = 'rgba(245,158,11,0.12)';
-      ctx.fillRect(0, hazardY - 24, cw, 24);
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, hazardY, cw, 10);
-      ctx.clip();
-      const stripeShift = this.raceOffset % 24;
-      ctx.fillStyle = '#92400e';
-      ctx.fillRect(0, hazardY, cw, 10);
-      ctx.fillStyle = '#f59e0b';
-      for (let sx = -stripeShift - 24; sx < cw + 24; sx += 24) {
-        ctx.beginPath();
-        ctx.moveTo(sx, hazardY + 10);
-        ctx.lineTo(sx + 10, hazardY);
-        ctx.lineTo(sx + 18, hazardY);
-        ctx.lineTo(sx + 8, hazardY + 10);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.restore();
-
-      // Buzzsaws drawn first so concrete floor edges sit cleanly beside saw mounts
-      for (const obs of this.raceObstacles) {
-        if (obs.kind !== 'saw') continue;
-        const sx = obs.x - this.raceOffset;
-        if (sx < -120 || sx > cw + 120) continue;
-        const scx = sx + obs.w / 2;
-        const scy = obs.y + obs.h / 2;
-        // Vertical steel guide track for moving/chasm buzzsaw
-        ctx.fillStyle = '#181d25';
-        ctx.fillRect(scx - 4, scy, 8, Math.max(10, ch - scy));
-        this.drawFactorySaw(ctx, scx, scy, obs.r ?? 24, this.miniTick * 0.16);
-      }
-
-      // Draw Parkur Concrete Floors, Elevated Ledges, Springs & Crates
-      for (const obs of this.raceObstacles) {
-        if (obs.kind === 'saw') continue;
-        const sx = obs.x - this.raceOffset;
-        if (sx < -obs.w - 40 || sx > cw + 80) continue;
-
-        if (obs.kind === 'floor') {
-          const fg = ctx.createLinearGradient(sx, obs.y, sx, obs.y + obs.h);
-          fg.addColorStop(0, '#363c46');
-          fg.addColorStop(0.22, '#22272f');
-          fg.addColorStop(1, '#0e1116');
-          ctx.fillStyle = fg;
-          ctx.fillRect(sx, obs.y, obs.w, obs.h);
-
-          // Concrete top lip & weathered edge trim
-          ctx.fillStyle = '#525b69';
-          ctx.fillRect(sx, obs.y, obs.w, 6);
-          ctx.fillStyle = 'rgba(255,255,255,0.14)';
-          ctx.fillRect(sx, obs.y, obs.w, 2);
-          ctx.strokeStyle = '#090b0f';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(sx, obs.y, obs.w, obs.h);
-
-          // Procedural concrete hairline cracks
-          ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-          ctx.lineWidth = 1.4;
-          for (let cxOff = 28; cxOff < obs.w - 20; cxOff += 76) {
-            ctx.beginPath();
-            ctx.moveTo(sx + cxOff, obs.y + 6);
-            ctx.lineTo(sx + cxOff + 7, obs.y + 18);
-            ctx.lineTo(sx + cxOff - 2, obs.y + 28);
-            ctx.stroke();
-          }
-          continue;
-        }
-
-        if (obs.kind === 'spring') {
-          ctx.fillStyle = '#14532d';
-          roundRectPath(ctx, sx, obs.y + 5, obs.w, obs.h - 5, 3);
-          ctx.fill();
-          ctx.fillStyle = '#4ade80';
-          ctx.shadowColor = '#4ade80';
-          ctx.shadowBlur = 10;
-          roundRectPath(ctx, sx + 2, obs.y, obs.w - 4, 6, 3);
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          continue;
-        }
-
-        if (obs.kind === 'platform') {
-          // Suspended reinforced concrete catwalk slab + diagonal side support brackets
-          ctx.fillStyle = '#11151c';
-          ctx.fillRect(sx + 8, obs.y + obs.h, 6, 10);
-          ctx.fillRect(sx + obs.w - 14, obs.y + obs.h, 6, 10);
-
-          const pg = ctx.createLinearGradient(sx, obs.y, sx, obs.y + obs.h);
-          pg.addColorStop(0, '#474f5c');
-          pg.addColorStop(1, '#1e232b');
-          ctx.fillStyle = pg;
-          roundRectPath(ctx, sx, obs.y, obs.w, obs.h, 3);
-          ctx.fill();
-          ctx.fillStyle = '#64748b';
-          ctx.fillRect(sx + 2, obs.y + 1, obs.w - 4, 3);
-          ctx.strokeStyle = '#090b0f';
-          ctx.lineWidth = 1.5;
-          roundRectPath(ctx, sx, obs.y, obs.w, obs.h, 3);
-          ctx.stroke();
-          continue;
-        }
-
-        // Steel-banded crate / block
-        const cg = ctx.createLinearGradient(sx, obs.y, sx + obs.w, obs.y + obs.h);
-        cg.addColorStop(0, '#3a404a');
-        cg.addColorStop(1, '#181b21');
+        ctx.globalAlpha = a;
+        const cg = ctx.createRadialGradient(cr.x, cr.y, 2, cr.x, cr.y, cr.r);
+        cg.addColorStop(0, 'rgba(253,224,71,0.78)');
+        cg.addColorStop(0.55, 'rgba(249,115,22,0.48)');
+        cg.addColorStop(1, 'transparent');
         ctx.fillStyle = cg;
-        roundRectPath(ctx, sx, obs.y, obs.w, obs.h, 4);
-        ctx.fill();
-        ctx.fillStyle = '#f59e0b';
-        ctx.fillRect(sx + 3, obs.y + 3, obs.w - 6, 4);
-        ctx.strokeStyle = 'rgba(245,158,11,0.55)';
-        ctx.lineWidth = 1.5;
-        roundRectPath(ctx, sx, obs.y, obs.w, obs.h, 4);
-        ctx.stroke();
-      }
-
-      const fsx = this.raceFinishX - this.raceOffset;
-      if (fsx > -40 && fsx < cw + 40) {
-        const deckTop = ch - 78;
-        ctx.fillStyle = 'rgba(74,222,128,0.12)';
-        ctx.fillRect(fsx - 4, 48, 22, deckTop - 48);
-        for (let y = 52; y < deckTop; y += 12) {
-          const even = Math.floor((y - 52) / 12) % 2 === 0;
-          ctx.fillStyle = even ? '#ffffff' : '#111116';
-          ctx.fillRect(fsx, y, 7, 12);
-          ctx.fillStyle = even ? '#111116' : '#ffffff';
-          ctx.fillRect(fsx + 7, y, 7, 12);
-        }
-        ctx.fillStyle = '#4ade80';
-        ctx.font = '800 20px "Barlow Condensed", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('FİNİŞ', fsx + 7, 42);
-      }
-
-      for (const p of this.players) {
-        if (!p.alive) continue;
-        const prog = Math.max(0, Math.min(1, p.raceX / (this.raceFinishX || 1)));
-        const y = 44 + p.index * 10;
-        ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        roundRectPath(ctx, 24, y, cw - 48, 5, 2.5);
-        ctx.fill();
-        ctx.fillStyle = p.color;
-        roundRectPath(ctx, 24, y, Math.max(8, (cw - 48) * prog), 5, 2.5);
-        ctx.fill();
-      }
-    } else if (this.currentMinigame === 'bomb') {
-      const g = ctx.createRadialGradient(cw / 2, ch / 2, 40, cw / 2, ch / 2, Math.max(cw, ch) * 0.75);
-      g.addColorStop(0, '#2a1216');
-      g.addColorStop(0.65, '#130c0e');
-      g.addColorStop(1, '#08080a');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, cw, ch);
-
-      // Underground munitions bunker deck + overhead hazard conduits
-      ctx.strokeStyle = 'rgba(249,115,22,0.06)';
-      ctx.lineWidth = 1;
-      for (let gx = 0; gx < cw; gx += 64) { ctx.beginPath(); ctx.moveTo(gx, 48); ctx.lineTo(gx, ch); ctx.stroke(); }
-      for (let gy = 48; gy < ch; gy += 64) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(cw, gy); ctx.stroke(); }
-
-      ctx.strokeStyle = 'rgba(249,115,22,0.22)';
-      ctx.lineWidth = 6;
-      ctx.strokeRect(12, 48, cw - 24, ch - 60);
-      this.drawPillars(ctx, '#f97316', 'cover');
-
-      if (this.ball) {
-        const b = this.ball;
-        if (b.fuse < 120) {
-          ctx.fillStyle = `rgba(239,68,68,${0.12 + 0.08 * Math.sin(nowT * 12)})`;
-          ctx.fillRect(0, 0, cw, ch);
-        }
-        ctx.strokeStyle = 'rgba(239,68,68,0.22)';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([6, 6]);
-        ctx.beginPath(); ctx.arc(b.x, b.y, 92, 0, Math.PI * 2); ctx.stroke();
-        ctx.setLineDash([]);
-
-        ctx.save();
-        ctx.shadowColor = b.fuse < 120 ? '#ef4444' : '#f97316';
-        ctx.shadowBlur = 20;
-        ctx.fillStyle = '#18181b';
-        ctx.beginPath(); ctx.arc(b.x, b.y, 13, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cr.x, cr.y + 1, cr.r, 7, 0, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
-
-        const fuseRatio = Math.max(0, b.fuse / (b.maxFuse || 360));
-        if (b.fuse < 120) {
-          ctx.strokeStyle = `rgba(239,68,68,${0.35 + 0.35 * Math.abs(Math.sin(nowT * 10))})`;
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(b.x, b.y, 26 + Math.sin(nowT * 12) * 3, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-        ctx.strokeStyle = b.fuse < 120 ? '#ef4444' : '#fbbf24';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, 19, -Math.PI / 2, -Math.PI / 2 + fuseRatio * Math.PI * 2);
-        ctx.stroke();
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '700 12px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${Math.max(0, Math.ceil(b.fuse / 60))}s`, b.x, b.y - 26);
-      }
-    } else if (this.currentMinigame === 'laser') {
-      const g = ctx.createRadialGradient(cw / 2, ch / 2, 30, cw / 2, ch / 2, cw * 0.65);
-      g.addColorStop(0, '#0f1c2e');
-      g.addColorStop(1, '#06080d');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, cw, ch);
-
-      // Cyber security vault floor plates + emitter nodes along walls
-      ctx.strokeStyle = 'rgba(56,189,248,0.09)';
-      ctx.lineWidth = 1;
-      for (let gx = 0; gx < cw; gx += 48) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, ch); ctx.stroke(); }
-      for (let gy = 0; gy < ch; gy += 48) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(cw, gy); ctx.stroke(); }
-      ctx.fillStyle = 'rgba(56,189,248,0.25)';
-      for (let nx = 42; nx < cw - 20; nx += 96) {
-        ctx.fillRect(nx - 3, 46, 6, 4);
-        ctx.fillRect(nx - 3, ch - 10, 6, 4);
       }
 
-      this.drawPickups(ctx);
-
-      for (const b of this.beams) {
+      // Erupting Volcanic Magma Geysers (anti-camping!)
+      for (const g of this.meteorGeysers) {
         ctx.save();
-        if (b.warn > 0) {
-          const blink = b.warn < 18 ? (Math.floor(b.warn / 3) % 2 === 0 ? 0.85 : 0.25) : 0.45;
-          ctx.strokeStyle = `rgba(251,191,36,${blink})`;
-          ctx.lineWidth = 2.5;
-          ctx.setLineDash([10, 8]);
-          ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+        if (g.warn > 0) {
+          const prog = 1 - g.warn / 48;
+          ctx.fillStyle = `rgba(251,146,60,${0.35 + prog * 0.45})`;
+          ctx.beginPath(); ctx.ellipse(g.x, deckY, 26, 7, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#fde047';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath(); ctx.moveTo(g.x, deckY); ctx.lineTo(g.x, deckY - g.h * prog); ctx.stroke();
           ctx.setLineDash([]);
         } else {
-          ctx.shadowColor = b.color;
-          ctx.shadowBlur = 22;
-          ctx.strokeStyle = b.color;
-          ctx.lineWidth = b.width * 1.45;
-          ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = b.width * 0.5;
-          ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+          const fade = Math.min(1, g.eruptT / 10);
+          ctx.globalAlpha = fade;
+          const gg = ctx.createLinearGradient(g.x - 24, 0, g.x + 24, 0);
+          gg.addColorStop(0, 'rgba(234,88,12,0.12)');
+          gg.addColorStop(0.3, 'rgba(249,115,22,0.78)');
+          gg.addColorStop(0.5, 'rgba(254,240,138,0.95)');
+          gg.addColorStop(0.7, 'rgba(249,115,22,0.78)');
+          gg.addColorStop(1, 'rgba(234,88,12,0.12)');
+          ctx.fillStyle = gg;
+          roundRectPath(ctx, g.x - 22, deckY - g.h, 44, g.h + 4, 18);
+          ctx.fill();
         }
         ctx.restore();
       }
-      this.drawMiniHeader(ctx, `${Math.max(0, Math.ceil(this.gameTimer / 60))}s`, this.gameTimer / (this.gameTimerMax || 1));
-    } else if (this.currentMinigame === 'lava') {
-      const g = ctx.createLinearGradient(0, 0, 0, ch);
-      g.addColorStop(0, '#09070a');
-      g.addColorStop(0.55, '#210d0c');
-      g.addColorStop(1, '#4c130b');
-      ctx.fillStyle = g;
+
+      this.drawPickups(ctx);
+
+      // Angled sky-piercing telegraph laser beams & meteors
+      for (const m of this.meteors) {
+        if (m.warn > 0) {
+          const prog = 1 - m.warn / (m.maxWarn || 40);
+          const blink = m.warn < 14 && Math.floor(m.warn / 3) % 2 === 0 ? 0.92 : 0.48;
+          ctx.save();
+          ctx.strokeStyle = m.cluster ? `rgba(249,115,22,${0.26 + prog * 0.32})` : `rgba(239,68,68,${0.22 + prog * 0.28})`;
+          ctx.lineWidth = m.r * 1.1;
+          ctx.beginPath(); ctx.moveTo(m.startX, 42); ctx.lineTo(m.targetX, deckY); ctx.stroke();
+
+          ctx.strokeStyle = `rgba(253,224,71,${blink})`;
+          ctx.lineWidth = 2.2;
+          ctx.setLineDash([7, 7]);
+          ctx.beginPath(); ctx.moveTo(m.startX, 42); ctx.lineTo(m.targetX, deckY); ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.strokeStyle = m.cluster ? '#fb923c' : '#ef4444';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.ellipse(m.targetX, deckY, Math.max(10, m.r * (1.25 - prog * 0.5)), 6.5, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.save();
+          const tailAng = Math.atan2(-m.vy, -m.vx);
+          ctx.translate(m.x, m.y);
+          ctx.save();
+          ctx.rotate(tailAng);
+          const flame = ctx.createLinearGradient(0, 0, m.r * 3.3, 0);
+          flame.addColorStop(0, 'rgba(253,224,71,0.95)');
+          flame.addColorStop(0.45, 'rgba(249,115,22,0.6)');
+          flame.addColorStop(1, 'transparent');
+          ctx.fillStyle = flame;
+          ctx.beginPath();
+          ctx.moveTo(0, -m.r * 0.9);
+          ctx.lineTo(m.r * 3.3, 0);
+          ctx.lineTo(0, m.r * 0.9);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+
+          ctx.shadowColor = m.cluster ? '#f97316' : '#fbbf24';
+          ctx.shadowBlur = 18;
+          const rock = ctx.createRadialGradient(-m.r * 0.25, -m.r * 0.25, 2, 0, 0, m.r);
+          rock.addColorStop(0, '#fde047');
+          rock.addColorStop(0.55, m.cluster ? '#ea580c' : '#7c2d12');
+          rock.addColorStop(1, '#27120c');
+          ctx.fillStyle = rock;
+          ctx.beginPath(); ctx.arc(0, 0, m.r, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      this.drawMiniHeader(ctx, `METEOR YAĞIŞI · ${Math.max(0, Math.ceil(this.gameTimer / 60))}s`, this.gameTimer / (this.gameTimerMax || 1), 220);
+    } else if (this.currentMinigame === 'inferno') {
+      // Backdrop gradient for Foundry Tower (world elements render inside drawInfernoWorld with camera!)
+      const bg = ctx.createLinearGradient(0, 0, 0, ch);
+      bg.addColorStop(0, '#0f0706');
+      bg.addColorStop(0.55, '#1f0d08');
+      bg.addColorStop(1, '#3b1206');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, cw, ch);
+    } else if (this.currentMinigame === 'storm') {
+      const shipL = cw * 0.10;
+      const shipW = cw * 0.80;
+      const deckY = ch - 94;
+
+      // Hurricane Midnight Sky + Lightning Sheet Flash
+      const sky = ctx.createLinearGradient(0, 0, 0, ch);
+      if (this.stormFlash > 0) {
+        sky.addColorStop(0, '#1e3a5f');
+        sky.addColorStop(0.6, '#334155');
+        sky.addColorStop(1, '#0f172a');
+      } else {
+        sky.addColorStop(0, '#020617');
+        sky.addColorStop(0.55, '#0b1528');
+        sky.addColorStop(1, '#09111f');
+      }
+      ctx.fillStyle = sky;
       ctx.fillRect(0, 0, cw, ch);
 
-      ctx.save();
-      ctx.translate(0, -this.lavaCamY);
+      // Swirling Storm Clouds
+      for (const cl of this.clouds) {
+        ctx.fillStyle = this.stormFlash > 0 ? 'rgba(148,163,184,0.22)' : 'rgba(30,41,59,0.52)';
+        ctx.beginPath(); ctx.arc(cl.x, cl.y * 0.45, cl.r * 1.35, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cl.x + cl.r * 0.8, cl.y * 0.45 + 6, cl.r, 0, Math.PI * 2); ctx.fill();
+      }
 
-      // Towering basalt volcano cavern walls + glowing magma cracks on left/right
-      const topWallY = Math.floor((this.lavaCamY - 200) / 140) * 140;
-      const botWallY = this.lavaCamY + ch + 180;
-      for (let wy = topWallY; wy <= botWallY; wy += 140) {
-        const jut = 16 + ((Math.abs(wy) * 7) % 14);
-        ctx.fillStyle = '#181010';
-        ctx.beginPath();
-        ctx.moveTo(0, wy);
-        ctx.lineTo(jut, wy + 70);
-        ctx.lineTo(0, wy + 140);
-        ctx.closePath();
+      // Far Ocean Horizon Waves
+      ctx.fillStyle = '#082f49';
+      ctx.beginPath();
+      ctx.moveTo(0, ch);
+      for (let wx = 0; wx <= cw; wx += 32) {
+        ctx.lineTo(wx, ch - 62 + Math.sin(wx * 0.025 + nowT * 2.1) * 9);
+      }
+      ctx.lineTo(cw, ch);
+      ctx.closePath();
+      ctx.fill();
+
+      // Cargo Ship Silhouette: Mast, Rigging & Captain's Bridge Cabin
+      ctx.save();
+      const mastX = shipL + shipW * 0.52;
+      ctx.strokeStyle = 'rgba(148,163,184,0.34)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(shipL + 34, deckY);
+      ctx.lineTo(mastX, deckY - 245);
+      ctx.lineTo(shipL + shipW - 28, deckY);
+      ctx.stroke();
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(mastX - 5, deckY - 250, 10, 250);
+      ctx.fillRect(mastX - 42, deckY - 205, 84, 5);
+      // Blinking Storm Mast Beacon
+      ctx.fillStyle = this.miniTick % 40 < 20 ? '#ef4444' : '#7f1d1d';
+      ctx.beginPath(); ctx.arc(mastX, deckY - 254, 4.5, 0, Math.PI * 2); ctx.fill();
+
+      // Captain's Bridge Cabin (behind left catwalk)
+      const cabW = Math.max(106, cw * 0.14);
+      ctx.fillStyle = '#1e293b';
+      roundRectPath(ctx, shipL + 20, deckY - 120, cabW, 120, 6);
+      ctx.fill();
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(shipL + 16, deckY - 122, cabW + 8, 12);
+      // Warm glowing yellow cabin windows
+      ctx.fillStyle = '#fde047';
+      for (let wx = shipL + 30; wx < shipL + 20 + cabW - 22; wx += 24) {
+        roundRectPath(ctx, wx, deckY - 102, 14, 16, 2);
         ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(cw, wy);
-        ctx.lineTo(cw - jut, wy + 70);
-        ctx.lineTo(cw, wy + 140);
-        ctx.closePath();
+        roundRectPath(ctx, wx, deckY - 62, 12, 12, 6);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(249,115,22,0.35)';
-        ctx.lineWidth = 1.6;
+      }
+
+      // Main Steel Cargo Ship Hull (below deckY)
+      const hullG = ctx.createLinearGradient(0, deckY, 0, ch - 18);
+      hullG.addColorStop(0, '#334155');
+      hullG.addColorStop(0.45, '#1e293b');
+      hullG.addColorStop(1, '#7f1d1d');
+      ctx.fillStyle = hullG;
+      ctx.beginPath();
+      ctx.moveTo(shipL - 12, deckY - 4);
+      ctx.lineTo(shipL + shipW + 18, deckY - 8);
+      ctx.lineTo(shipL + shipW - 14, ch - 22);
+      ctx.lineTo(shipL + 14, ch - 22);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      // Ship Deck, Shipping Containers & Catwalks
+      this.drawStyledSidePlats(ctx, '#38bdf8');
+      this.drawPickups(ctx);
+
+      // Sky-to-Sea Thunderbolts
+      for (const b of this.stormBolts) {
+        ctx.save();
+        if (b.warn > 0) {
+          const prog = 1 - b.warn / 46;
+          ctx.fillStyle = `rgba(56,189,248,${0.14 + prog * 0.2})`;
+          ctx.fillRect(b.x - b.r * 0.7, 40, b.r * 1.4, deckY - 40);
+          ctx.strokeStyle = 'rgba(186,230,253,0.75)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 6]);
+          ctx.beginPath(); ctx.moveTo(b.x, 40); ctx.lineTo(b.x, deckY); ctx.stroke();
+          ctx.setLineDash([]);
+        } else {
+          ctx.globalAlpha = Math.max(0, b.flash / 18);
+          ctx.shadowColor = '#38bdf8';
+          ctx.shadowBlur = 22;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.moveTo(b.x, 0);
+          let curX = b.x;
+          for (let sy = 40; sy <= deckY; sy += 46) {
+            curX = b.x + Math.sin(sy * 0.17 + this.miniTick) * 16;
+            ctx.lineTo(curX, sy);
+          }
+          ctx.lineTo(b.x, deckY);
+          ctx.stroke();
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 10;
+          ctx.globalAlpha *= 0.4;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // Rogue Ocean Wave sweeping the deck
+      if (this.stormWave) {
+        const wv = this.stormWave;
+        ctx.save();
+        if (wv.warn > 0) {
+          const wx = wv.side === -1 ? 26 : cw - 26;
+          const pulse = 0.55 + Math.sin(this.miniTick * 0.35) * 0.38;
+          ctx.fillStyle = `rgba(56,189,248,${pulse})`;
+          ctx.font = '800 18px "Barlow Condensed", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(wv.side === -1 ? '🌊 DALĞA →' : '← DALĞA 🌊', wx + (wv.side === -1 ? 36 : -36), deckY - 38);
+        } else {
+          const wg = ctx.createLinearGradient(wv.x - 42, 0, wv.x + 42, 0);
+          wg.addColorStop(0, 'rgba(14,165,233,0.18)');
+          wg.addColorStop(0.5, 'rgba(186,230,253,0.82)');
+          wg.addColorStop(1, 'rgba(14,165,233,0.18)');
+          ctx.fillStyle = wg;
+          ctx.beginPath();
+          ctx.ellipse(wv.x, deckY - 34, 40, 48, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // Foreground Rolling Ocean Swell
+      const seaGrad = ctx.createLinearGradient(0, ch - 46, 0, ch);
+      seaGrad.addColorStop(0, '#0284c7');
+      seaGrad.addColorStop(1, '#082f49');
+      ctx.fillStyle = seaGrad;
+      ctx.beginPath();
+      ctx.moveTo(0, ch);
+      for (let wx = 0; wx <= cw; wx += 26) {
+        ctx.lineTo(wx, ch - 32 + Math.sin(wx * 0.032 - nowT * 3.1) * 7);
+      }
+      ctx.lineTo(cw, ch);
+      ctx.closePath();
+      ctx.fill();
+
+      // Diagonal Hurricane Rain
+      ctx.strokeStyle = 'rgba(186,230,253,0.34)';
+      ctx.lineWidth = 1.4;
+      for (const r of this.stormRain) {
         ctx.beginPath();
-        ctx.moveTo(4, wy + 30);
-        ctx.lineTo(jut - 4, wy + 70);
+        ctx.moveTo(r.x, r.y);
+        ctx.lineTo(r.x - 4, r.y + r.len);
         ctx.stroke();
       }
 
-      const startGrid = Math.floor((this.lavaCamY - 50) / 200) * 200;
-      const endGrid = this.lavaCamY + ch + 50;
-      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-      ctx.lineWidth = 1;
-      ctx.fillStyle = 'rgba(255,255,255,0.22)';
-      ctx.font = '700 11px "JetBrains Mono", monospace';
-      ctx.textAlign = 'left';
-      for (let gy = startGrid; gy <= endGrid; gy += 200) {
-        const meters = Math.round((ch - gy) / 10);
-        if (meters <= 0) continue;
-        ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(cw, gy); ctx.stroke();
-        ctx.fillText(`${meters}m`, 24, gy - 5);
-      }
+      this.drawMiniHeader(ctx, `FIRTINA GƏMİSİ · ${Math.max(0, Math.ceil(this.gameTimer / 60))}s`, this.gameTimer / (this.gameTimerMax || 1), 230);
+    } else if (this.currentMinigame === 'avalanche') {
+      // Winter Dusk Alpine Gorge Sky + Aurora (world geometry renders inside drawAvalancheWorld with camera!)
+      const sky = ctx.createLinearGradient(0, 0, 0, ch);
+      sky.addColorStop(0, '#041224');
+      sky.addColorStop(0.55, '#0b223d');
+      sky.addColorStop(1, '#102a43');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, cw, ch);
 
-      for (const pl of this.plats) {
-        const isCrumble = pl.kind === 'crumble';
-        const crumbling = isCrumble && pl.crumbleT !== undefined && pl.crumbleT < 46;
-        const jx = crumbling ? Math.sin(this.miniTick * 1.6) * 2.5 : 0;
-        const px = pl.x + jx;
-        ctx.fillStyle =
-          pl.kind === 'spring' ? '#14532d' : isCrumble ? '#7c2d12' : '#27272a';
-        roundRectPath(ctx, px, pl.y, pl.w, 13, 4);
-        ctx.fill();
-        ctx.fillStyle =
-          pl.kind === 'spring' ? '#4ade80' : isCrumble ? '#fb923c' : pl.dx !== 0 ? '#f59e0b' : '#71717a';
-        roundRectPath(ctx, px + 2, pl.y, pl.w - 4, 4, 2);
-        ctx.fill();
-        if (isCrumble) {
-          ctx.strokeStyle = crumbling ? '#fed7aa' : 'rgba(254,215,170,0.45)';
-          ctx.lineWidth = 1.4;
-          ctx.beginPath();
-          ctx.moveTo(px + pl.w * 0.25, pl.y + 3);
-          ctx.lineTo(px + pl.w * 0.38, pl.y + 11);
-          ctx.moveTo(px + pl.w * 0.64, pl.y + 3);
-          ctx.lineTo(px + pl.w * 0.56, pl.y + 11);
-          ctx.stroke();
-        }
-      }
+      // Northern Aurora band
+      const aur = ctx.createRadialGradient(cw * 0.55, ch * 0.2, 20, cw * 0.55, ch * 0.2, cw * 0.55);
+      aur.addColorStop(0, 'rgba(56,189,248,0.22)');
+      aur.addColorStop(0.55, 'rgba(34,211,238,0.08)');
+      aur.addColorStop(1, 'transparent');
+      ctx.fillStyle = aur;
+      ctx.fillRect(0, 0, cw, ch);
 
-      if (this.lavaY < this.lavaCamY + ch + 80) {
-        const lg = ctx.createLinearGradient(0, this.lavaY - 6, 0, this.lavaY + ch);
-        lg.addColorStop(0, '#fde047');
-        lg.addColorStop(0.22, '#f97316');
-        lg.addColorStop(1, '#7c2d12');
-        ctx.fillStyle = lg;
+      // Distant parallax snow mountain silhouettes
+      const camRatio = Math.max(0, Math.min(1, this.avaCamY / this.avaWorldH));
+      const mShift = camRatio * 48;
+      ctx.fillStyle = '#07172a';
+      ctx.beginPath();
+      ctx.moveTo(0, ch);
+      ctx.lineTo(0, ch * 0.52 - mShift);
+      ctx.lineTo(cw * 0.18, ch * 0.28 - mShift);
+      ctx.lineTo(cw * 0.36, ch * 0.48 - mShift);
+      ctx.lineTo(cw * 0.56, ch * 0.22 - mShift);
+      ctx.lineTo(cw * 0.78, ch * 0.46 - mShift);
+      ctx.lineTo(cw, ch * 0.32 - mShift);
+      ctx.lineTo(cw, ch);
+      ctx.closePath();
+      ctx.fill();
+
+      // Screen-space falling snowflakes
+      ctx.fillStyle = 'rgba(241,245,249,0.72)';
+      for (const fl of this.avaSnow) {
         ctx.beginPath();
-        ctx.moveTo(0, this.lavaCamY + ch + 100);
-        ctx.lineTo(0, this.lavaY);
-        for (let lx = 0; lx <= cw; lx += 24) {
-          ctx.lineTo(lx, this.lavaY + Math.sin(lx * 0.04 + nowT * 3) * 4);
-        }
-        ctx.lineTo(cw, this.lavaCamY + ch + 100);
-        ctx.closePath();
+        ctx.arc(fl.x, fl.y, fl.r, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.restore();
-
-      const climbM = Math.max(0, Math.round(-this.lavaCamY / 10));
-      this.drawMiniHeader(ctx, `${climbM} m`);
     }
   }
 
@@ -4765,44 +4289,13 @@ export class MinigameEngine {
     ctx.ellipse(p.x, p.y + 22, 11 * shScale, 3.5 * shScale, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    if (
-      p.dashCooldown > 0 &&
-      (this.currentMinigame === 'samurai' ||
-        this.currentMinigame === 'blades' ||
-        this.currentMinigame === 'sumo' ||
-        this.currentMinigame === 'laser' ||
-        this.currentMinigame === 'lava' ||
-        this.currentMinigame === 'race' ||
-        this.currentMinigame === 'futbol')
-    ) {
-      const maxCd =
-        this.currentMinigame === 'race'
-          ? 44
-          : this.currentMinigame === 'laser' || this.currentMinigame === 'lava'
-          ? 34
-          : this.currentMinigame === 'blades'
-          ? 30
-          : this.currentMinigame === 'futbol'
-          ? 28
-          : 32;
-      const cdRatio = Math.max(0, Math.min(1, 1 - p.dashCooldown / maxCd));
+    if (p.dashCooldown > 0 && this.currentMinigame !== 'zombie') {
+      const cdRatio = Math.max(0, Math.min(1, 1 - p.dashCooldown / 34));
       ctx.strokeStyle = 'rgba(255,255,255,0.55)';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(p.x, p.y + 22 - hopOffset, 13, -Math.PI / 2, -Math.PI / 2 + cdRatio * Math.PI * 2);
       ctx.stroke();
-    }
-
-    if (this.currentMinigame === 'sumo' && p.shield) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(251,191,36,0.75)';
-      ctx.shadowColor = '#fbbf24';
-      ctx.shadowBlur = 14;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y - hopOffset, 22 + Math.sin(this.miniTick * 0.2) * 2, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
     }
 
     let rig = this.rigs[p.index];
@@ -4831,56 +4324,38 @@ export class MinigameEngine {
     ctx.arc(p.x + Math.cos(p.angle) * 26, p.y - hopOffset + Math.sin(p.angle) * 26, 2.4, 0, Math.PI * 2);
     ctx.fill();
 
-    const holdingBomb = this.currentMinigame === 'bomb' && this.ball?.holder === p.index;
-    const hasWeapon =
-      this.currentMinigame === 'zombie' ||
-      this.currentMinigame === 'samurai' ||
-      this.currentMinigame === 'sniper';
+    const hasWeapon = this.currentMinigame === 'zombie';
 
+    ctx.save();
     drawRagdollStickman(ctx, rig, {
       color: p.color,
       shield: p.shield,
       weapon: 'none',
-      twoHanded: holdingBomb || this.currentMinigame === 'sniper',
+      twoHanded: false,
       time: this.miniTick,
     });
 
-    if (hasWeapon || p.isAttacking) {
+    if (hasWeapon) {
       ctx.save();
       ctx.translate(rig.rHand.x, rig.rHand.y);
       ctx.rotate(p.angle);
-      if (this.currentMinigame === 'samurai') {
-        ctx.fillStyle = '#e4e4e7';
-        ctx.fillRect(0, -2, 24, 3.6);
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillRect(-2, -5, 3, 10);
-      } else if (this.currentMinigame === 'sniper') {
-        // Sleek dark tactical sniper rifle with scope + crimson laser emitter
-        ctx.fillStyle = '#090b0f';
-        ctx.fillRect(-5, -2.5, 19, 4.5);
-        ctx.fillStyle = '#272c35';
-        ctx.fillRect(14, -1.6, 15, 2.6);
-        ctx.fillStyle = '#181c23';
-        ctx.fillRect(3, -5.8, 10, 2.8);
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath(); ctx.arc(29, -0.3, 1.8, 0, Math.PI * 2); ctx.fill();
-      } else if (this.currentMinigame === 'zombie') {
-        if (p.weap === 'grenade') {
-          ctx.fillStyle = '#ea580c';
-          ctx.beginPath(); ctx.arc(4, 0, 5.5, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = '#d4d4d8';
-          ctx.fillRect(2, -7, 4, 3);
-        } else {
-          ctx.fillStyle = p.weap === 'shotgun' ? '#f59e0b' : p.weap === 'rapid' ? '#38bdf8' : '#71717a';
-          ctx.fillRect(-2, -3.5, 16, 6);
-        }
+      if (p.weap === 'grenade') {
+        ctx.fillStyle = '#ea580c';
+        ctx.beginPath(); ctx.arc(4, 0, 5.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#d4d4d8';
+        ctx.fillRect(2, -7, 4, 3);
+      } else {
+        ctx.fillStyle = p.weap === 'shotgun' ? '#f59e0b' : p.weap === 'rapid' ? '#38bdf8' : '#71717a';
+        ctx.fillRect(-2, -3.5, 16, 6);
       }
       ctx.restore();
     }
+    ctx.restore();
 
     const look = PartyEconomy.look(p.index);
     const ext = PartyEconomy.headTop(look, 10);
     const barY = rig.head.y - ext - 12;
+
     if (p.hp <= 100) {
       const ratio = Math.max(0, Math.min(1, p.hp / 100));
       ctx.fillStyle = 'rgba(0,0,0,0.65)';
@@ -4908,13 +4383,17 @@ export class MinigameEngine {
     ctx.translate(this.shakeX, this.shakeY);
     this.drawMap(ctx);
 
-    if (this.currentMinigame === 'lava') {
-      ctx.translate(0, -this.lavaCamY);
-    } else if (this.currentMinigame === 'zombie') {
+    if (this.currentMinigame === 'zombie') {
       ctx.translate(cw / 2, ch / 2);
       ctx.scale(this.zCamZoom, this.zCamZoom);
       ctx.translate(-this.zCamX, -this.zCamY);
       this.drawZombieWorld(ctx);
+    } else if (this.currentMinigame === 'inferno') {
+      ctx.translate(0, -this.infCamY + ch / 2);
+      this.drawInfernoWorld(ctx);
+    } else if (this.currentMinigame === 'avalanche') {
+      ctx.translate(0, -this.avaCamY + ch / 2);
+      this.drawAvalancheWorld(ctx);
     }
 
     // Expanding shockwave rings
@@ -4924,23 +4403,6 @@ export class MinigameEngine {
       ctx.strokeStyle = r.color;
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
-
-    // Samurai Katana Crescent Slashes
-    for (const sl of this.slashes) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, sl.life / sl.maxLife);
-      ctx.translate(sl.x, sl.y);
-      ctx.rotate(sl.angle);
-      ctx.shadowColor = sl.color;
-      ctx.shadowBlur = 14;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 6;
-      ctx.beginPath(); ctx.arc(0, 0, sl.radius, -1.0, 1.0); ctx.stroke();
-      ctx.strokeStyle = sl.color;
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(0, 0, sl.radius + 4, -0.95, 0.95); ctx.stroke();
       ctx.restore();
     }
 
@@ -4961,16 +4423,26 @@ export class MinigameEngine {
           ctx.fillStyle = '#fde047';
           ctx.beginPath(); ctx.arc(3.5, -9, 2.5, 0, Math.PI * 2); ctx.fill();
         }
-      } else if (pr.kind === 'sniper') {
+      } else if (pr.kind === 'laser') {
         ctx.strokeStyle = col;
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 4.2;
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(pr.x - pr.vx * 1.5, pr.y - pr.vy * 1.5);
+        ctx.moveTo(pr.x - pr.vx * 1.4, pr.y - pr.vy * 1.4);
         ctx.lineTo(pr.x, pr.y);
         ctx.stroke();
         ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(pr.x, pr.y, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(pr.x, pr.y, 3.2, 0, Math.PI * 2); ctx.fill();
+      } else if (pr.kind === 'shell') {
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(pr.x - pr.vx * 1.1, pr.y - pr.vy * 1.1);
+        ctx.lineTo(pr.x, pr.y);
+        ctx.stroke();
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath(); ctx.arc(pr.x, pr.y, pr.radius || 5, 0, Math.PI * 2); ctx.fill();
       } else {
         ctx.fillStyle = col;
         ctx.beginPath();
@@ -5033,6 +4505,18 @@ export class MinigameEngine {
         ? `DALĞA ${this.zombieWave}/${this.zMaxWaves} · ÖLDÜRÜLƏN: ${this.zombieKills} · ☠ BOSS`
         : `DALĞA ${this.zombieWave}/${this.zMaxWaves} · ÖLDÜRÜLƏN: ${this.zombieKills}`;
       this.drawMiniHeader(ctx, hudTxt, undefined, hasBoss ? 320 : 258);
+    } else if (this.currentMinigame === 'inferno') {
+      const alive = this.players.filter((p) => p.alive);
+      const topY = alive.length > 0 ? Math.min(...alive.map((p) => p.y)) : this.infWorldH - 107;
+      const pct = Math.max(0, Math.min(100, Math.round(((this.infWorldH - 107 - topY) / (this.infWorldH - 107 - 163)) * 100)));
+      this.drawMiniHeader(ctx, `VULKAN QÜLLƏSİ · ZİRVƏ ${pct}%`, pct / 100, 238);
+    } else if (this.currentMinigame === 'avalanche') {
+      const alive = this.players.filter((p) => p.alive);
+      const startFootY = 126;
+      const goalFootY = this.avaWorldH - 162;
+      const botY = alive.length > 0 ? Math.max(...alive.map((p) => p.y)) : startFootY;
+      const pct = Math.max(0, Math.min(100, Math.round(((botY - startFootY) / (goalFootY - startFootY)) * 100)));
+      this.drawMiniHeader(ctx, `QAR ÇIĞINDAN QAÇIŞ · ENİŞ ${pct}%`, pct / 100, 252);
     }
 
     ctx.fillStyle = 'rgba(244,244,245,0.55)';
@@ -5108,7 +4592,7 @@ export class MinigameEngine {
         const endText =
           this.currentMinigame === 'zombie'
             ? this.zombieWon
-              ? '20 DALĞA TAMAMLANDI!'
+              ? `${this.zMaxWaves} DALĞA TAMAMLANDI!`
               : 'ZOMBİLƏR QALİB GƏLDİ!'
             : 'RAUND BİTDİ!';
         ctx.fillStyle = this.currentMinigame === 'zombie' && this.zombieWon ? '#4ade80' : '#ffffff';
@@ -5156,31 +4640,55 @@ export class MinigameEngine {
       }
     } else {
       this.acc = 0;
-      const side = this.currentMinigame === 'race' || this.currentMinigame === 'lava' || this.currentMinigame === 'zombie';
+      const isZombie = this.currentMinigame === 'zombie';
+      const isInferno = this.currentMinigame === 'inferno';
+      const isAvalanche = this.currentMinigame === 'avalanche';
       this.miniTick++;
-      if (this.currentMinigame === 'zombie') {
+      if (isZombie || this.currentMinigame === 'meteor' || isInferno) {
         this.stepZombieEmbers();
+      }
+      if (isZombie) {
         this.updateZombieCamera();
+      }
+      if (isInferno) {
+        this.updateInfernoCamera();
+      }
+      if (isAvalanche) {
+        this.updateAvalancheCamera();
+        for (const fl of this.avaSnow) {
+          fl.x += Math.sin(this.miniTick * 0.03 + fl.y * 0.02) * 0.7;
+          fl.y += fl.sp;
+          if (fl.y > this.ch + 12) {
+            fl.y = -12;
+            fl.x = Math.random() * this.cw;
+          }
+        }
+      }
+      for (const r of this.stormRain) {
+        r.x -= 2.4;
+        r.y += r.sp;
+        if (r.y > this.ch + 20) {
+          r.y = -20;
+          r.x = Math.random() * (this.cw + 80);
+        }
+        if (r.x < -30) r.x += this.cw + 60;
       }
       for (const p of this.players) {
         if (p.alive) {
-          this.updateMiniSprings(p, side);
+          this.updateMiniSprings(p, true);
           this.driveMiniRig(p);
         }
       }
       const sidePlats = this.getSidePlatforms();
-      const isLava = this.currentMinigame === 'lava';
-      const isZombie = this.currentMinigame === 'zombie';
       for (let i = this.deadRagdolls.length - 1; i >= 0; i--) {
         const entry = this.deadRagdolls[i];
-        const plats = entry.floorY !== undefined ? [[0, entry.floorY, this.cw, 36] as [number, number, number, number]] : sidePlats;
         if (
           !stepDeadRagdoll(
             entry.rig,
-            plats,
-            entry.floorY !== undefined ? 0.24 : isLava || isZombie ? 0.42 : 0.36,
+            sidePlats,
+            0.42,
             isZombie ? this.zWorldW : this.cw,
-            isLava ? this.lavaCamY + this.ch + 140 : isZombie ? this.zGroundY + 90 : this.ch,
+            isZombie ? this.zGroundY + 90 : isInferno ? this.infWorldH + 90 : isAvalanche ? this.avaWorldH + 90 : this.ch + 40,
             true,
             false
           )

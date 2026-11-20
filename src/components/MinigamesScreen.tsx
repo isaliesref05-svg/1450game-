@@ -86,12 +86,20 @@ export function MinigamesScreen({
         </div>
       </div>
 
-      {/* 12-card Grid: 4 columns on landscape phones (>=640px) */}
+      {/* 5-card Symmetric Showcase Grid: 1+2+2 on portrait mobile, 2+3 on landscape/desktop */}
       <div className="flex-1 min-h-0 overflow-y-auto mono-scroll p-2.5 sm:p-4">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
-          {MINIGAME_LIST.map((m) => {
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 sm:gap-3.5 max-w-6xl mx-auto">
+          {MINIGAME_LIST.map((m, idx) => {
             const active = selectedMini === m.id;
             const isNew = m.tag.startsWith('YENİ');
+            const spanClass =
+              idx === 0
+                ? 'col-span-2 sm:col-span-3'
+                : idx === 1
+                  ? 'col-span-1 sm:col-span-3'
+                  : 'col-span-1 sm:col-span-2';
+            const imgHeightClass =
+              idx <= 1 ? 'aspect-[16/10] sm:aspect-auto sm:h-40 md:h-48' : 'aspect-[16/10] sm:aspect-auto sm:h-36 md:h-44';
             return (
               <button
                 key={m.id}
@@ -101,13 +109,13 @@ export function MinigamesScreen({
                   setSelectedMini(m.id);
                 }}
                 onDoubleClick={() => onStartMinigame(m.id)}
-                className={`group rounded-xl sm:rounded-2xl overflow-hidden border text-left flex flex-col bg-[#121317] transition active:scale-[0.98] ${
+                className={`${spanClass} group rounded-xl sm:rounded-2xl overflow-hidden border text-left flex flex-col bg-[#121317] transition active:scale-[0.98] ${
                   active
                     ? 'border-white ring-1 ring-white/80 shadow-[0_0_24px_rgba(255,255,255,0.14)]'
                     : 'border-zinc-800 hover:border-zinc-600'
                 }`}
               >
-                <div className="relative aspect-[16/10] w-full bg-zinc-950 overflow-hidden">
+                <div className={`relative ${imgHeightClass} w-full bg-zinc-950 overflow-hidden`}>
                   <img
                     src={MINIGAME_ARTWORK[m.id] || fallbackThumbs[m.id]}
                     alt={m.name}
@@ -121,12 +129,12 @@ export function MinigamesScreen({
                   />
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#121317] via-transparent to-black/25" />
                 </div>
-                <div className="px-2.5 pb-2.5 pt-1.5 sm:px-3 sm:pb-3 sm:pt-2 flex-1 flex flex-col justify-between">
+                <div className="px-2.5 pb-2.5 pt-1.5 sm:px-3.5 sm:pb-3 sm:pt-2 flex-1 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-0.5">
                       <span
                         className={`text-[9px] sm:text-[10px] font-mono tracking-wide truncate ${
-                          isNew ? 'text-emerald-400 font-bold' : 'text-zinc-400'
+                          isNew ? 'text-amber-300 font-bold' : 'text-emerald-400 font-bold'
                         }`}
                       >
                         {m.tag}

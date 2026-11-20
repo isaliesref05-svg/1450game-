@@ -66,7 +66,7 @@ export default function App() {
   const [screen, setScreen] = useState<ScreenId>('home');
   const [playerCount, setPlayerCount] = useState(2);
   const [selectedMap, setSelectedMap] = useState<MapId>('abandoned_city');
-  const [selectedMini, setSelectedMini] = useState<MinigameId>('sumo');
+  const [selectedMini, setSelectedMini] = useState<MinigameId>('zombie');
   const [rounds, setRounds] = useState(3);
   const [lootMode, setLootMode] = useState(false);
   const [weapons, setWeapons] = useState<WeaponChoice[]>(['sword', 'sword', 'sword', 'sword']);
