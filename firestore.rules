@@ -108,25 +108,29 @@ service cloud.firestore {
         && data.id is string && data.id == roomId && data.id.size() >= 1 && data.id.size() <= 64
         && data.name is string && data.name.size() >= 1 && data.name.size() <= 24
         && data.hostUid is string && data.hostUid.size() >= 1 && data.hostUid.size() <= 128
+        && data.hostUid.matches('^[a-zA-Z0-9_\\-]+$')
         && data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 32
         && data.locked is bool
         && data.playerCount is int && data.playerCount >= 1 && data.playerCount <= 4
         && data.status in ['lobby', 'playing']
-        && data.updatedAt is int;
+        && data.updatedAt is int && data.updatedAt >= 0;
     }
 
     function isValidSignal(data, signalId) {
-      return data.keys().hasAll(['guestUid', 'guestName', 'updatedAt'])
-        && data.keys().hasOnly(['guestUid', 'guestName', 'password', 'offer', 'answer', 'guestCandidates', 'hostCandidates', 'status', 'updatedAt'])
+      return data.keys().hasAll(['guestUid', 'hostUid', 'guestName', 'updatedAt'])
+        && data.keys().hasOnly(['guestUid', 'hostUid', 'guestName', 'password', 'offer', 'answer', 'guestCandidates', 'hostCandidates', 'status', 'updatedAt'])
         && data.guestUid is string && data.guestUid == signalId && data.guestUid.size() >= 1 && data.guestUid.size() <= 128
+        && data.guestUid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.hostUid is string && data.hostUid.size() >= 1 && data.hostUid.size() <= 128
+        && data.hostUid.matches('^[a-zA-Z0-9_\\-]+$')
         && data.guestName is string && data.guestName.size() <= 32
         && (!('password' in data) || (data.password is string && data.password.size() <= 32))
-        && (!('offer' in data) || (data.offer is string && data.offer.size() <= 12000))
-        && (!('answer' in data) || (data.answer is string && data.answer.size() <= 12000))
-        && (!('guestCandidates' in data) || (data.guestCandidates is list && data.guestCandidates.size() <= 40))
-        && (!('hostCandidates' in data) || (data.hostCandidates is list && data.hostCandidates.size() <= 40))
+        && (!('offer' in data) || (data.offer is string && data.offer.size() <= 24000))
+        && (!('answer' in data) || (data.answer is string && data.answer.size() <= 24000))
+        && (!('guestCandidates' in data) || (data.guestCandidates is list && data.guestCandidates.size() <= 40 && (data.guestCandidates.size() == 0 || (data.guestCandidates[0] is string && data.guestCandidates[0].size() <= 1024))))
+        && (!('hostCandidates' in data) || (data.hostCandidates is list && data.hostCandidates.size() <= 40 && (data.hostCandidates.size() == 0 || (data.hostCandidates[0] is string && data.hostCandidates[0].size() <= 1024))))
         && (!('status' in data) || data.status in ['pending', 'answered', 'rejected'])
-        && data.updatedAt is int;
+        && data.updatedAt is int && data.updatedAt >= 0;
     }
 
     match /users/{userId} {
@@ -186,7 +190,8 @@ service cloud.firestore {
     }
 
     match /rooms/{roomId} {
-      allow get, list: if isValidId(roomId) && isAuthenticated();
+      allow get: if isValidId(roomId) && isAuthenticated();
+      allow list: if isAuthenticated() && existing().status == 'lobby';
       allow create: if isValidId(roomId)
         && isAuthenticated()
         && isValidRoom(incoming(), roomId)
@@ -194,22 +199,53 @@ service cloud.firestore {
       allow update: if isValidId(roomId)
         && isAuthenticated()
         && isValidRoom(incoming(), roomId)
-        && (existing().hostUid == request.auth.uid || (existing().updatedAt + 90000) < incoming().updatedAt);
+        && incoming().id == existing().id
+        && (
+          (
+            existing().hostUid == request.auth.uid
+            && incoming().hostUid == existing().hostUid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'hostName', 'locked', 'playerCount', 'status', 'updatedAt'])
+          )
+          || (
+            (existing().updatedAt + 90000) < incoming().updatedAt
+            && incoming().hostUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'hostUid', 'hostName', 'locked', 'playerCount', 'status', 'updatedAt'])
+          )
+        );
       allow delete: if isValidId(roomId)
         && isAuthenticated()
         && existing().hostUid == request.auth.uid;
 
       match /signals/{signalId} {
-        allow get, list: if isValidId(roomId) && isValidId(signalId) && isAuthenticated()
-          && (request.auth.uid == signalId || get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid);
+        allow get: if isValidId(roomId) && isValidId(signalId) && isAuthenticated()
+          && (request.auth.uid == signalId || existing().hostUid == request.auth.uid);
+        allow list: if isValidId(roomId) && isAuthenticated()
+          && existing().hostUid == request.auth.uid;
         allow create: if isValidId(roomId) && isValidId(signalId) && isAuthenticated()
           && request.auth.uid == signalId
-          && isValidSignal(incoming(), signalId);
+          && isValidSignal(incoming(), signalId)
+          && exists(/databases/$(database)/documents/rooms/$(roomId))
+          && incoming().hostUid == get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid;
         allow update: if isValidId(roomId) && isValidId(signalId) && isAuthenticated()
           && isValidSignal(incoming(), signalId)
-          && (request.auth.uid == signalId || get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid);
+          && incoming().guestUid == existing().guestUid
+          && incoming().hostUid == existing().hostUid
+          && (
+            (
+              request.auth.uid == signalId
+              && incoming().diff(existing()).affectedKeys().hasOnly(['guestName', 'password', 'offer', 'guestCandidates', 'status', 'updatedAt'])
+            )
+            || (
+              existing().hostUid == request.auth.uid
+              && incoming().diff(existing()).affectedKeys().hasOnly(['answer', 'hostCandidates', 'status', 'updatedAt'])
+            )
+          );
         allow delete: if isValidId(roomId) && isValidId(signalId) && isAuthenticated()
-          && (request.auth.uid == signalId || get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid);
+          && (
+            request.auth.uid == signalId
+            || existing().hostUid == request.auth.uid
+            || get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid
+          );
       }
     }
   }

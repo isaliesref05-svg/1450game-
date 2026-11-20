@@ -454,6 +454,11 @@ export async function adminSetUserCoins(
 }
 
 export async function ensureOnlineAuthUid(): Promise<string | null> {
+  try {
+    await auth.authStateReady();
+  } catch {
+    // ignore
+  }
   if (auth.currentUser?.uid) return auth.currentUser.uid;
   try {
     const res = await signInAnonymously(auth);
@@ -461,5 +466,9 @@ export async function ensureOnlineAuthUid(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+export function isCloudOnlineSignedIn(): boolean {
+  return !!auth.currentUser?.uid;
 }
 

@@ -582,6 +582,9 @@ export default function App() {
         screen === 'roomLobby') && (
         <OnlineScreens
           screen={screen}
+          isGmailSignedIn={!!authUser}
+          authBusy={authBusy}
+          onGoogleSignIn={handleGoogleSignIn}
           onNavigate={setScreen}
           onBackHome={() => {
             onlineManager.cleanup();

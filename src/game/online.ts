@@ -5,8 +5,10 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
+  query,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import Peer, { DataConnection } from 'peerjs';
 import { db, ensureOnlineAuthUid } from '../firebase';
@@ -18,8 +20,8 @@ import { inputPlayers, MapId, MinigameId, PLAYER_NAMES, WeaponChoice } from './t
 
 export const MAX_ONLINE_SLOTS = 4;
 const REG_ID = 'stickparty-registry-v1x';
-const JOIN_TIMEOUT_MS = 12000;
-const CREATE_TIMEOUT_MS = 12000;
+const JOIN_TIMEOUT_MS = 20000;
+const CREATE_TIMEOUT_MS = 15000;
 const RECONNECT_DELAY_MS = 1400;
 const MAX_RECONNECT_ATTEMPTS = 2;
 const STALE_ROOM_TTL_MS = 16000;
@@ -31,13 +33,10 @@ export const RTC_ICE_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
     { urls: 'stun:global.stun.twilio.com:3478' },
   ],
-  iceCandidatePoolSize: 8,
+  iceCandidatePoolSize: 6,
 };
 
 export const PEER_CONFIG: import('peerjs').PeerJSOption = {
@@ -108,6 +107,8 @@ export interface OnlineSnapshot {
   roomsLoading: boolean;
   creating: boolean;
   joining: boolean;
+  signalMode: 'none' | 'cloud' | 'p2p';
+  cloudAuthBlocked: boolean;
 }
 
 export interface OnlineHandlers {
@@ -130,6 +131,7 @@ interface NetLink {
 
 interface FsSignalDoc {
   guestUid: string;
+  hostUid: string;
   guestName: string;
   password?: string;
   offer?: string;
@@ -175,6 +177,8 @@ class OnlineManager {
   private fsRoomsWatchUnsub: (() => void) | null = null;
   private fsPeerConns = new Map<string, RTCPeerConnection>();
   private fsAppliedCandCounts = new Map<string, number>();
+  private fsLatestGuestCands = new Map<string, string[]>();
+  private fsLastOfferByGuest = new Map<string, string>();
   private fsRejectedUids = new Set<string>();
   private fsGuestPc: RTCPeerConnection | null = null;
 
@@ -206,6 +210,8 @@ class OnlineManager {
   private roomsLoading = false;
   private creating = false;
   private joining = false;
+  private signalMode: 'none' | 'cloud' | 'p2p' = 'none';
+  private cloudAuthBlocked = false;
 
   private listeners = new Set<() => void>();
   private handlers: OnlineHandlers | null = null;
@@ -224,6 +230,8 @@ class OnlineManager {
     roomsLoading: false,
     creating: false,
     joining: false,
+    signalMode: 'none',
+    cloudAuthBlocked: false,
   };
 
   setHandlers(handlers: OnlineHandlers, isGameActive: () => boolean) {
@@ -254,6 +262,8 @@ class OnlineManager {
       roomsLoading: this.roomsLoading,
       creating: this.creating,
       joining: this.joining,
+      signalMode: this.signalMode,
+      cloudAuthBlocked: this.cloudAuthBlocked,
     };
     this.listeners.forEach((cb) => cb());
   }
@@ -335,11 +345,13 @@ class OnlineManager {
     void (async () => {
       const uid = await ensureOnlineAuthUid();
       if (stopped) return;
+      this.cloudAuthBlocked = !uid;
       if (uid) {
         this.roomsLoading = true;
         this.emit();
+        const roomsQuery = query(collection(db, 'rooms'), where('status', '==', 'lobby'));
         this.fsRoomsWatchUnsub = onSnapshot(
-          collection(db, 'rooms'),
+          roomsQuery,
           (snap) => {
             if (stopped) return;
             const now = Date.now();
@@ -366,13 +378,15 @@ class OnlineManager {
             this.roomsLoading = false;
             this.emit();
           },
-          () => {
+          (err) => {
             if (stopped) return;
+            console.warn('Firestore watchRooms error:', err);
             this.roomsLoading = false;
             this.refreshRoomsPeerJs();
           }
         );
       } else {
+        this.emit();
         this.refreshRoomsPeerJs();
       }
     })();
@@ -394,9 +408,11 @@ class OnlineManager {
     this.roomsLoading = true;
     this.emit();
     const uid = await ensureOnlineAuthUid();
+    this.cloudAuthBlocked = !uid;
     if (uid) {
       try {
-        const snap = await getDocs(collection(db, 'rooms'));
+        const roomsQuery = query(collection(db, 'rooms'), where('status', '==', 'lobby'));
+        const snap = await getDocs(roomsQuery);
         const now = Date.now();
         const list: DiscoveredRoom[] = [];
         snap.forEach((docSnap) => {
@@ -421,8 +437,8 @@ class OnlineManager {
         this.roomsLoading = false;
         this.emit();
         return;
-      } catch {
-        // Fallback to PeerJS registry if Firestore rooms rules not active yet
+      } catch (err) {
+        console.warn('Firestore refreshRooms error:', err);
       }
     }
     this.refreshRoomsPeerJs();
@@ -542,6 +558,8 @@ class OnlineManager {
     }
     this.fsPeerConns.clear();
     this.fsAppliedCandCounts.clear();
+    this.fsLatestGuestCands.clear();
+    this.fsLastOfferByGuest.clear();
     this.fsRejectedUids.clear();
 
     if (this.fsGuestPc) {
@@ -590,6 +608,7 @@ class OnlineManager {
     this.guestReadyFlag = false;
     this.creating = false;
     this.joining = false;
+    this.signalMode = 'none';
     this.reconnecting = false;
     this.reconnectAttempts = 0;
     this.roomName = '';
@@ -799,6 +818,7 @@ class OnlineManager {
   private async tryFirestoreCreate(cleanName: string, password: string, seq: number) {
     const uid = await ensureOnlineAuthUid();
     if (!this.onlineFlag || this.sessionSeq !== seq) return;
+    this.cloudAuthBlocked = !uid;
 
     if (!uid) {
       this.createRoomPeerJs(cleanName, password, seq, 0);
@@ -837,19 +857,20 @@ class OnlineManager {
       await setDoc(roomRef, payload);
       if (!this.onlineFlag || this.sessionSeq !== seq) return;
 
-      // Clear any leftover signal docs in this room if reusing a stale room slot
+      const signalsQuery = query(collection(db, 'rooms', rId, 'signals'), where('hostUid', '==', uid));
       try {
-        const oldSignals = await getDocs(collection(db, 'rooms', rId, 'signals'));
+        const oldSignals = await getDocs(signalsQuery);
         for (const sDoc of oldSignals.docs) {
           await deleteDoc(sDoc.ref).catch(() => {});
         }
       } catch {
-        // ignore
+        // ignore stale signal cleanup errors
       }
       if (!this.onlineFlag || this.sessionSeq !== seq) return;
 
       this.fsRoomId = rId;
       this.fsUid = uid;
+      this.signalMode = 'cloud';
       if (this.createTimer) { clearTimeout(this.createTimer); this.createTimer = null; }
       this.creating = false;
       this.lobbySlots = [hostName.slice(0, 14) || 'Host', null, null, null];
@@ -862,30 +883,117 @@ class OnlineManager {
         }
       }, FS_HEARTBEAT_MS);
 
-      this.fsSignalsUnsub = onSnapshot(collection(db, 'rooms', rId, 'signals'), (snap) => {
-        if (!this.onlineFlag || this.sessionSeq !== seq) return;
-        snap.forEach((docSnap) => {
-          const sig = docSnap.data() as FsSignalDoc;
-          if (!sig || !sig.guestUid || sig.status === 'rejected') return;
-          void this.handleHostFirestoreSignal(rId, sig, seq);
-        });
-      });
+      this.fsSignalsUnsub = onSnapshot(
+        signalsQuery,
+        (snap) => {
+          if (!this.onlineFlag || this.sessionSeq !== seq) return;
+          snap.forEach((docSnap) => {
+            const sig = docSnap.data() as FsSignalDoc;
+            if (!sig || !sig.guestUid || sig.status === 'rejected') return;
+            void this.handleHostFirestoreSignal(rId, sig, seq);
+          });
+        },
+        (err) => {
+          if (!this.onlineFlag || this.sessionSeq !== seq) return;
+          console.error('Firestore signals listener error:', err);
+          if (this.hostLinks.length === 0 && !this.isGameActive()) {
+            this.cleanupFirestoreResources();
+            this.createRoomPeerJs(cleanName, password, seq, 0);
+          }
+        }
+      );
 
+      this.startHybridPeerJsHost(cleanName, seq);
       this.emit();
       this.handlers?.onLobbyJoined();
-    } catch {
+    } catch (err) {
+      console.warn('Firestore createRoom failed, falling back to PeerJS:', err);
       if (!this.onlineFlag || this.sessionSeq !== seq) return;
-      // Fallback transparently to PeerJS if Firestore /rooms rules aren't deployed yet
       this.createRoomPeerJs(cleanName, password, seq, 0);
+    }
+  }
+
+  private startHybridPeerJsHost(cleanName: string, seq: number) {
+    if (this.peer || !this.onlineFlag || this.sessionSeq !== seq) return;
+    try {
+      const p = new Peer(roomPeerId(cleanName), PEER_CONFIG);
+      this.peer = p;
+      p.on('open', () => {
+        if (this.sessionSeq === seq && this.onlineFlag && this.isHostFlag) {
+          this.announceStart();
+        }
+      });
+      p.on('error', () => {
+        // Hybrid listener is best-effort for unauthenticated PeerJS guests; never break primary cloud room
+        if (this.peer === p) {
+          this.peer = null;
+          try {
+            p.destroy();
+          } catch {
+            // ignore
+          }
+        }
+      });
+      p.on('connection', (c) => {
+        const link = this.wrapPeerConn(c);
+        const setupConn = () => {
+          c.on('data', (raw) => {
+            const d = raw as Record<string, unknown>;
+            if (!d || typeof d !== 'object') return;
+            if (d.type === 'auth') {
+              this.attachHostLink(link, d);
+            } else if (link.slot) {
+              this.handleNetData(d, link.slot);
+            }
+          });
+          c.on('close', () => this.handleHostLinkClose(link));
+          c.on('error', () => {
+            // handled on close
+          });
+        };
+        if (c.open) setupConn();
+        else c.on('open', setupConn);
+      });
+    } catch {
+      // ignore hybrid PeerJS errors
+    }
+  }
+
+  private async applyHostGuestCands(guestUid: string, pc: RTCPeerConnection) {
+    if (!pc.remoteDescription) return;
+    const cands = this.fsLatestGuestCands.get(guestUid) || [];
+    const applied = this.fsAppliedCandCounts.get(guestUid) || 0;
+    if (cands.length <= applied) return;
+    this.fsAppliedCandCounts.set(guestUid, cands.length);
+    for (let i = applied; i < cands.length; i++) {
+      try {
+        await pc.addIceCandidate(JSON.parse(cands[i]) as RTCIceCandidateInit);
+      } catch {
+        // ignore late/duplicate ICE candidate
+      }
     }
   }
 
   private async handleHostFirestoreSignal(roomId: string, sig: FsSignalDoc, seq: number) {
     const guestUid = sig.guestUid;
+    this.fsLatestGuestCands.set(guestUid, Array.isArray(sig.guestCandidates) ? sig.guestCandidates : []);
     if (this.fsRejectedUids.has(guestUid)) return;
     if (!sig.offer) return;
 
+    const prevOffer = this.fsLastOfferByGuest.get(guestUid);
     let pc = this.fsPeerConns.get(guestUid);
+    if (pc && prevOffer && sig.offer !== prevOffer && sig.status === 'pending') {
+      const oldLink = this.hostLinks.find((l) => l.guestUid === guestUid);
+      if (oldLink) this.handleHostLinkClose(oldLink);
+      try {
+        pc.close();
+      } catch {
+        // ignore
+      }
+      this.fsPeerConns.delete(guestUid);
+      pc = undefined;
+    }
+
     if (!pc) {
       if (this.hostLinks.filter((x) => x.open).length >= MAX_ONLINE_SLOTS - 1) {
         this.fsRejectedUids.add(guestUid);
@@ -906,6 +1014,7 @@ class OnlineManager {
         return;
       }
 
+      this.fsLastOfferByGuest.set(guestUid, sig.offer);
       pc = new RTCPeerConnection(RTC_ICE_CONFIG);
       this.fsPeerConns.set(guestUid, pc);
       this.fsAppliedCandCounts.set(guestUid, 0);
@@ -928,6 +1037,18 @@ class OnlineManager {
         if (ev.candidate && hostCandidates.length < 40) {
           hostCandidates.push(JSON.stringify(ev.candidate.toJSON()));
           flushHostCands();
+        }
+      };
+
+      let iceRestarted = false;
+      pc.oniceconnectionstatechange = () => {
+        if (pc && pc.iceConnectionState === 'failed' && !iceRestarted) {
+          iceRestarted = true;
+          try {
+            pc.restartIce();
+          } catch {
+            // ignore
+          }
         }
       };
 
@@ -972,6 +1093,7 @@ class OnlineManager {
       try {
         const offerDesc = JSON.parse(sig.offer) as RTCSessionDescriptionInit;
         await pc.setRemoteDescription(offerDesc);
+        await this.applyHostGuestCands(guestUid, pc);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         if (!this.onlineFlag || this.sessionSeq !== seq) return;
@@ -985,22 +1107,12 @@ class OnlineManager {
       }
     }
 
-    const cands = Array.isArray(sig.guestCandidates) ? sig.guestCandidates : [];
-    const applied = this.fsAppliedCandCounts.get(guestUid) || 0;
-    if (pc.remoteDescription && cands.length > applied) {
-      for (let i = applied; i < cands.length; i++) {
-        try {
-          await pc.addIceCandidate(JSON.parse(cands[i]) as RTCIceCandidateInit);
-        } catch {
-          // ignore late/duplicate ICE candidate
-        }
-      }
-      this.fsAppliedCandCounts.set(guestUid, cands.length);
-    }
+    await this.applyHostGuestCands(guestUid, pc);
   }
 
   private createRoomPeerJs(cleanName: string, password: string, seq: number, retryCount: number) {
     if (!this.onlineFlag || this.sessionSeq !== seq) return;
+    this.signalMode = 'p2p';
     try {
       const p = new Peer(roomPeerId(cleanName), PEER_CONFIG);
       this.peer = p;
@@ -1118,6 +1230,7 @@ class OnlineManager {
   private async tryFirestoreJoin(cleanName: string, password: string, seq: number) {
     const uid = await ensureOnlineAuthUid();
     if (!this.onlineFlag || this.sessionSeq !== seq) return;
+    this.cloudAuthBlocked = !uid;
 
     if (!uid) {
       this.attemptJoinPeerJs(cleanName, password, seq, 0);
@@ -1146,6 +1259,14 @@ class OnlineManager {
         return;
       }
 
+      if (roomData.status === 'playing') {
+        if (this.joinTimer) { clearTimeout(this.joinTimer); this.joinTimer = null; }
+        this.joining = false;
+        this.handlers?.onToast('Bu otaqda oyun artıq başlayıb', 'error');
+        this.cleanup();
+        return;
+      }
+
       if (roomData.playerCount >= MAX_ONLINE_SLOTS) {
         if (this.joinTimer) { clearTimeout(this.joinTimer); this.joinTimer = null; }
         this.joining = false;
@@ -1156,6 +1277,11 @@ class OnlineManager {
 
       this.fsRoomId = rId;
       this.fsUid = uid;
+      this.signalMode = 'cloud';
+
+      const signalRef = doc(db, 'rooms', rId, 'signals', uid);
+      await deleteDoc(signalRef).catch(() => {});
+      if (!this.onlineFlag || this.sessionSeq !== seq) return;
 
       const pc = new RTCPeerConnection(RTC_ICE_CONFIG);
       this.fsGuestPc = pc;
@@ -1163,14 +1289,14 @@ class OnlineManager {
       const link = this.wrapRtcChannel(dc, pc);
       this.guestLink = link;
 
-      const signalRef = doc(db, 'rooms', rId, 'signals', uid);
       const guestCandidates: string[] = [];
+      let signalDocReady = false;
       let candTimer: ReturnType<typeof setTimeout> | null = null;
       const flushGuestCands = () => {
-        if (candTimer) return;
+        if (!signalDocReady || candTimer) return;
         candTimer = setTimeout(() => {
           candTimer = null;
-          if (!this.onlineFlag || this.sessionSeq !== seq) return;
+          if (!this.onlineFlag || this.sessionSeq !== seq || !signalDocReady) return;
           void updateDoc(signalRef, {
             guestCandidates: guestCandidates.slice(0, 40),
             updatedAt: Date.now(),
@@ -1182,6 +1308,26 @@ class OnlineManager {
         if (ev.candidate && guestCandidates.length < 40) {
           guestCandidates.push(JSON.stringify(ev.candidate.toJSON()));
           flushGuestCands();
+        }
+      };
+
+      let iceRestarted = false;
+      pc.oniceconnectionstatechange = () => {
+        if (!this.onlineFlag || this.sessionSeq !== seq) return;
+        if (pc.iceConnectionState === 'failed') {
+          if (!iceRestarted) {
+            iceRestarted = true;
+            try {
+              pc.restartIce();
+            } catch {
+              // ignore
+            }
+          } else if (this.joining) {
+            if (this.joinTimer) { clearTimeout(this.joinTimer); this.joinTimer = null; }
+            this.joining = false;
+            this.handlers?.onToast('P2P bağlantısı qurulmadı (şəbəkə/NAT məhdudiyyəti) — yenidən cəhd edin', 'error');
+            this.cleanup();
+          }
         }
       };
 
@@ -1222,55 +1368,80 @@ class OnlineManager {
 
       const sigPayload: FsSignalDoc = {
         guestUid: uid,
+        hostUid: roomData.hostUid,
         guestName: (PartyEconomy.name() || 'Oyuncu').trim().slice(0, 32) || 'Oyuncu',
         password: String(password || '').slice(0, 32),
         offer: JSON.stringify(pc.localDescription),
-        guestCandidates: [],
+        guestCandidates: guestCandidates.slice(0, 40),
         status: 'pending',
         updatedAt: Date.now(),
       };
       await setDoc(signalRef, sigPayload);
+      signalDocReady = true;
       if (!this.onlineFlag || this.sessionSeq !== seq) return;
+      if (guestCandidates.length > 0) flushGuestCands();
 
       let appliedHostCands = 0;
+      let latestHostCands: string[] = [];
       let answerSet = false;
-      this.fsGuestSignalUnsub = onSnapshot(signalRef, async (snap) => {
-        if (!this.onlineFlag || this.sessionSeq !== seq || !snap.exists()) return;
-        const s = snap.data() as FsSignalDoc;
-        if (s.status === 'rejected') {
-          if (this.joinTimer) { clearTimeout(this.joinTimer); this.joinTimer = null; }
-          this.joining = false;
-          const msg =
-            s.answer === 'BAD_PASSWORD'
-              ? 'Şifrə yanlışdır!'
-              : s.answer === 'ROOM_FULL'
-                ? 'Otaq doludur (maksimum 4 oyunçu)'
-                : 'Otağa qoşulmaq rədd edildi';
-          this.handlers?.onToast(msg, 'error');
-          this.cleanup();
-          return;
-        }
-        if (s.answer && !answerSet && s.answer.startsWith('{')) {
-          answerSet = true;
+
+      const applyGuestHostCands = async () => {
+        if (!pc.remoteDescription) return;
+        if (latestHostCands.length <= appliedHostCands) return;
+        const startIdx = appliedHostCands;
+        const endIdx = latestHostCands.length;
+        appliedHostCands = endIdx;
+        for (let i = startIdx; i < endIdx; i++) {
           try {
-            await pc.setRemoteDescription(JSON.parse(s.answer) as RTCSessionDescriptionInit);
+            await pc.addIceCandidate(JSON.parse(latestHostCands[i]) as RTCIceCandidateInit);
           } catch {
             // ignore
           }
         }
-        const hostCands = Array.isArray(s.hostCandidates) ? s.hostCandidates : [];
-        if (pc.remoteDescription && hostCands.length > appliedHostCands) {
-          for (let i = appliedHostCands; i < hostCands.length; i++) {
+      };
+
+      this.fsGuestSignalUnsub = onSnapshot(
+        signalRef,
+        async (snap) => {
+          if (!this.onlineFlag || this.sessionSeq !== seq || !snap.exists()) return;
+          const s = snap.data() as FsSignalDoc;
+          if (s.status === 'rejected') {
+            if (this.joinTimer) { clearTimeout(this.joinTimer); this.joinTimer = null; }
+            this.joining = false;
+            const msg =
+              s.answer === 'BAD_PASSWORD'
+                ? 'Şifrə yanlışdır!'
+                : s.answer === 'ROOM_FULL'
+                  ? 'Otaq doludur (maksimum 4 oyunçu)'
+                  : 'Otağa qoşulmaq rədd edildi';
+            this.handlers?.onToast(msg, 'error');
+            this.cleanup();
+            return;
+          }
+          if (Array.isArray(s.hostCandidates)) {
+            latestHostCands = s.hostCandidates;
+          }
+          if (s.answer && !answerSet && s.answer.startsWith('{')) {
+            answerSet = true;
             try {
-              await pc.addIceCandidate(JSON.parse(hostCands[i]) as RTCIceCandidateInit);
+              await pc.setRemoteDescription(JSON.parse(s.answer) as RTCSessionDescriptionInit);
             } catch {
               // ignore
             }
           }
-          appliedHostCands = hostCands.length;
+          await applyGuestHostCands();
+        },
+        (err) => {
+          if (!this.onlineFlag || this.sessionSeq !== seq) return;
+          console.warn('Firestore guest signal error:', err);
+          if (this.joining) {
+            this.cleanupFirestoreResources();
+            this.attemptJoinPeerJs(cleanName, password, seq, 0);
+          }
         }
-      });
-    } catch {
+      );
+    } catch (err) {
+      console.warn('Firestore joinRoom failed, falling back to PeerJS:', err);
       if (!this.onlineFlag || this.sessionSeq !== seq) return;
       this.attemptJoinPeerJs(cleanName, password, seq, 0);
     }
@@ -1278,6 +1449,7 @@ class OnlineManager {
 
   private attemptJoinPeerJs(cleanName: string, password: string, seq: number, retryCount: number) {
     if (!this.onlineFlag || this.sessionSeq !== seq) return;
+    this.signalMode = 'p2p';
     try {
       const p = new Peer(PEER_CONFIG);
       this.peer = p;

@@ -30,11 +30,21 @@ import {
 
 interface OnlineScreensProps {
   screen: Extract<ScreenId, 'onlineChoice' | 'roomCreate' | 'roomJoin' | 'roomLobby'>;
+  isGmailSignedIn?: boolean;
+  authBusy?: boolean;
+  onGoogleSignIn?: () => void;
   onNavigate: (s: ScreenId) => void;
   onBackHome: () => void;
 }
 
-export function OnlineScreens({ screen, onNavigate, onBackHome }: OnlineScreensProps) {
+export function OnlineScreens({
+  screen,
+  isGmailSignedIn = false,
+  authBusy = false,
+  onGoogleSignIn,
+  onNavigate,
+  onBackHome,
+}: OnlineScreensProps) {
   const snap = useSyncExternalStore(onlineManager.subscribe, onlineManager.getSnapshot);
 
   const [roomName, setRoomName] = useState('');
@@ -70,7 +80,7 @@ export function OnlineScreens({ screen, onNavigate, onBackHome }: OnlineScreensP
       unsub();
       clearInterval(id);
     };
-  }, [screen]);
+  }, [screen, isGmailSignedIn]);
 
   const updateCfg = (patch: Partial<LobbyConfig>) => {
     onlineManager.updateConfig(patch);
@@ -87,6 +97,24 @@ export function OnlineScreens({ screen, onNavigate, onBackHome }: OnlineScreensP
       // ignore clipboard errors
     }
   };
+
+  const showGmailHint = !isGmailSignedIn && onGoogleSignIn;
+
+  const gmailBanner = showGmailHint ? (
+    <div className="shrink-0 px-3 sm:px-5 py-2 bg-amber-500/10 border-b border-amber-500/25 flex items-center justify-between gap-2">
+      <p className="text-[11px] sm:text-xs text-amber-200 leading-snug">
+        Stabil onlayn bağlantı və bütün otaqları görmək üçün Gmail ilə giriş tövsiyə olunur.
+      </p>
+      <button
+        type="button"
+        disabled={authBusy}
+        onClick={onGoogleSignIn}
+        className="h-7 px-3 rounded-lg bg-white hover:bg-zinc-200 disabled:opacity-50 text-zinc-950 text-[11px] font-extrabold shrink-0 transition"
+      >
+        {authBusy ? 'Gözləyin...' : 'Gmail ilə Giriş'}
+      </button>
+    </div>
+  ) : null;
 
   if (screen === 'onlineChoice') {
     return (
@@ -108,6 +136,7 @@ export function OnlineScreens({ screen, onNavigate, onBackHome }: OnlineScreensP
           </span>
           <div className="w-16" />
         </div>
+        {gmailBanner}
 
         <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 sm:gap-5 p-3 sm:p-6">
           <button
@@ -188,6 +217,7 @@ export function OnlineScreens({ screen, onNavigate, onBackHome }: OnlineScreensP
           <span className="font-display text-lg sm:text-xl font-bold text-white">OTAQ YARAT</span>
           <div className="w-16" />
         </div>
+        {gmailBanner}
 
         <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2">
           <form
@@ -288,6 +318,7 @@ export function OnlineScreens({ screen, onNavigate, onBackHome }: OnlineScreensP
             <span>Yenilə</span>
           </button>
         </div>
+        {gmailBanner}
 
         {/* Direct Join Bar */}
         <form
@@ -334,6 +365,7 @@ export function OnlineScreens({ screen, onNavigate, onBackHome }: OnlineScreensP
                 <button
                   key={r.id}
                   type="button"
+                  disabled={snap.joining}
                   onClick={() => {
                     if (r.lock) {
                       setJoinPass('');
@@ -342,7 +374,7 @@ export function OnlineScreens({ screen, onNavigate, onBackHome }: OnlineScreensP
                       onlineManager.joinRoom(r.name, '');
                     }
                   }}
-                  className="rounded-xl bg-[#131418] hover:bg-[#191b22] border border-zinc-800 hover:border-white/70 p-3.5 flex items-center justify-between gap-3 text-left transition"
+                  className="rounded-xl bg-[#131418] hover:bg-[#191b22] disabled:opacity-50 border border-zinc-800 hover:border-white/70 p-3.5 flex items-center justify-between gap-3 text-left transition"
                 >
                   <div className="min-w-0">
                     <div className="font-display text-xl font-bold text-white truncate">{r.name}</div>
